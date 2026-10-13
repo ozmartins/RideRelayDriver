@@ -1,0 +1,95 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Necessária para conectar aos relays Nostr (FR-016). Permissão normal: concedida na
+         instalação, sem diálogo para o usuário. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Localização em primeiro plano (feature 004): centrar o mapa na posição real do motorista
+         e decidir se ele pode ficar online (FR-001 a FR-003, FR-008). Permissão perigosa, com
+         diálogo ao usuário, pedida só ao abrir a tela de mapa — nunca antecipadamente. Sem
+         localização em segundo plano: a posição só é lida com o aplicativo em uso. ACCESS_COARSE
+         acompanha ACCESS_FINE porque o próprio Android exige as duas juntas para o diálogo de
+         permissão de localização em primeiro plano. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <!-- Serviço em primeiro plano da feature 025: mantém a conexão com os relays com o app em segundo
+         plano ou fechado, enquanto o app está visível ou o motorista online (constituição 2.14.0).
+         FOREGROUND_SERVICE_SPECIAL_USE porque dataSync tem limite de 6 h/24 h no Android 15 e location
+         exigiria uma permissão que o serviço não usa. POST_NOTIFICATIONS (Android 13+) é pedida em
+         tempo de execução, só ao ficar online pela primeira vez. Sem localização em segundo plano. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Os plugins mesclam estas duas por conta própria. O serviço funciona sem WAKE_LOCK (spike,
+         research.md D3) e a constituição 2.14.0 proíbe iniciá-lo no boot: removidas. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove"/>
+
+    <!-- Backup e transferência entre aparelhos desligados. A chave privada Nostr fica cifrada
+         nas preferências do flutter_secure_storage com uma chave do Android Keystore, que não
+         sai do aparelho: restaurada em outro, a preferência não decifra ("Failed to unwrap
+         key"). allowBackup cobre o backup na nuvem até o Android 11; dataExtractionRules cobre
+         nuvem e transferência entre aparelhos a partir do Android 12, que allowBackup sozinho
+         não desliga. Ver a opção resetOnError em services/ sobre o que a falha causaria. -->
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:label="Caronas Motorista"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Hospeda a conexão com os relays (feature 025). Sem stopWithTask: continua depois de o app
+             ser removido dos recentes. O receptor de boot do plugin é removido: o serviço só é
+             iniciado pela interface, com o app visível. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Conexão contínua com relays Nostr para receber solicitações de corrida"/>
+        </service>
+        <receiver
+            android:name="com.pravera.flutter_foreground_task.service.RebootReceiver"
+            tools:node="remove"/>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

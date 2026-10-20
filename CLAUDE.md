@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-App Flutter/Android do **motorista** de um protótipo de caronas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../passenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 025) e na constituição.
+App Flutter/Android do **motorista** de um protótipo de corridas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../passenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 025) e na constituição.
 
 ## Comandos
 
@@ -23,7 +23,7 @@ Chave do openrouteservice: `assets/ors_api_key.txt` ou `--dart-define=ORS_API_KE
 - `lib/domain/` — tipos próprios (Identity, Relay, NostrEvent, DriverProfile, ActiveRide, RideQuote…). **Nunca importa** `dart_nostr`, `sqflite`, `geolocator`, `flutter_map` etc.
 - `lib/services/` — único lugar onde bibliotecas de terceiros aparecem (Princípio III). Cada serviço é atrás de interface (`KeyStore`, `KeyValueStore`, `RelayGateway`, `RelayConnection`, `CadastroStore`, `LocationService`…) com implementação real separada (`nostr_relay_gateway.dart`, `sqflite_cadastro_store.dart`, `geolocator_location_service.dart`).
 - `lib/screens/` — UI; só usa tipos do domínio.
-- `lib/main.dart` — raiz de composição com **injeção explícita**: `CaronasDriverApp` recebe dependências opcionais (nulas em produção). Testes passam dublês, de modo que nenhum teste toca plugin de plataforma, Keystore, SQLite real, GPS ou rede. Os dublês ficam dentro de cada arquivo de teste/`test/support`; `test/` espelha `lib/`.
+- `lib/main.dart` — raiz de composição com **injeção explícita**: `CorridasDriverApp` recebe dependências opcionais (nulas em produção). Testes passam dublês, de modo que nenhum teste toca plugin de plataforma, Keystore, SQLite real, GPS ou rede. Os dublês ficam dentro de cada arquivo de teste/`test/support`; `test/` espelha `lib/`.
 - **Conexão com relays em segundo plano (feature 025)**: em produção a conexão vive num serviço em primeiro plano do Android (`lib/services/background/`), não no isolate da UI. `RelayHostCore` roda no serviço (verifica, repassa à UI via `MessageChannel`, decide notificação) sem conhecer plugin nem chave privada; `ServiceController`/`ForegroundTaskBackgroundService` ligam a UI a ele. Passar `gateway` ou `relayConnection` ao app mantém tudo no isolate da UI (modo dos testes).
 - **Kinds consumidos**: `driverConsumedKinds` (`services/consumed_kinds.dart`) é a fonte única para a inscrição no relay, o filtro do `EventFeed` e o serviço de fundo; deve bater com a seção "Forma da inscrição" do contrato.
 - Mensagens cifradas: NIP-44 implementado em casa (`nip44.dart`, `message_cipher.dart`, com `pointycastle`/`crypto`).

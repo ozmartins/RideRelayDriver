@@ -1,20 +1,20 @@
-# Caronas Motorista — app do motorista
+# Corridas Motorista — app do motorista
 
-Aplicativo do **motorista** do protótipo de caronas P2P sobre o protocolo Nostr, prova de conceito do TCC
-*"Nostr para Mobilidade P2P: Avaliação de Viabilidade em Aplicativos de Caronas"* (UFSC — Araranguá).
+Aplicativo do **motorista** do protótipo de corridas P2P sobre o protocolo Nostr, prova de conceito do TCC
+*"Nostr para Mobilidade P2P: Avaliação de Viabilidade em Aplicativos de Corridas"* (UFSC — Araranguá).
 
 O app do passageiro é um projeto **independente**, em `../passenger`. As duas aplicações não se conhecem
 nem trocam pacotes diretamente: toda comunicação entre elas acontece publicando e assinando eventos em
 relays Nostr. Não há backend próprio.
 
-- Identificador do aplicativo: `br.ufsc.tcc.caronas.driver`
-- Nome de exibição: **Caronas Motorista**
+- Identificador do aplicativo: `br.ufsc.tcc.corridas.driver`
+- Nome de exibição: **Corridas Motorista**
 
 ## Escopo atual
 
 | Existe | Não existe ainda |
 |--------|------------------|
-| Identidade Nostr própria, criada uma vez e guardada no Android Keystore | Formatos de evento de caronas (oferta, solicitação, mensagem) |
+| Identidade Nostr própria, criada uma vez e guardada no Android Keystore | Formatos de evento de corridas (oferta, solicitação, mensagem) |
 | Conexão simultânea a múltiplos relays, com estado de cada um | Criptografia de conteúdo entre pares (NIP-44) |
 | Publicação e recepção de eventos assinados (kinds de domínio `20001`+) | Comunicação com a app do passageiro |
 | Gestão da lista de relays, persistida no aparelho | Suporte a iOS, web ou desktop |
@@ -69,7 +69,7 @@ lib/
 └── screens/           # eventos, relays, identidade, cadastro, mapa (tela inicial)
 
 test/                  # espelha lib/: test/domain/, test/services/ e test/screens/, dublês em cada arquivo
-android/               # projeto Android (applicationId br.ufsc.tcc.caronas.driver)
+android/               # projeto Android (applicationId br.ufsc.tcc.corridas.driver)
 ```
 
 Tipos de bibliotecas de terceiros ficam **confinados a `services/`**: `domain/` e `screens/` nunca

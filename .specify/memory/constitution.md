@@ -127,7 +127,7 @@ Version change: 2.10.0 → 2.11.0
 Bump rationale: MINOR. Ampliação material das Restrições de Segurança e Privacidade: a regra
   anterior só exigia justificativa escrita para dado pessoal trafegando sem cifra; passa a exigir que
   toda mensagem de domínio com destinatário conhecido seja cifrada ao destinatário (NIP-44) e
-  assinada, com o `kind: 20001` (Solicitação de carona — anúncio sem destinatário) como única
+  assinada, com o `kind: 20001` (Solicitação de corrida — anúncio sem destinatário) como única
   exceção registrada. Nenhuma obrigação anterior foi removida.
 Motivador: pedido de que toda mensagem enviada de um app ao outro seja criptografada e assinada com
   o par de chaves assimétricas (features 019 do motorista e 022 do passageiro; contrato, emenda 17).
@@ -291,7 +291,7 @@ Follow-ups pendentes:
 Version change: 2.3.0 → 2.4.0
 Bump rationale: MINOR. A exceção de roteamento aberta pela emenda 2.3.0 só cobria, ao pé da letra, o
   par "posição atual do usuário + destino escolhido por ele". A feature 007 do motorista (modal de
-  solicitação de carona recebida) precisa enviar também o par origem→destino de uma solicitação
+  solicitação de corrida recebida) precisa enviar também o par origem→destino de uma solicitação
   recebida de outro usuário — nenhum dos dois pontos é a posição do próprio motorista. Esta emenda
   generaliza a exceção para "duas coordenadas relevantes para uma decisão do usuário", cobrindo os
   dois casos sob as mesmas condições (HTTPS, sem identificador, sem persistência). Nenhum Princípio
@@ -503,9 +503,9 @@ Follow-ups pendentes:
     constituição antes de /speckit-implement.
 -->
 
-# Caronas Motorista Constitution
+# Corridas Motorista Constitution
 
-Constituição do aplicativo do motorista (`Prototipo/driver`), protótipo de caronas P2P sobre o
+Constituição do aplicativo do motorista (`Prototipo/driver`), protótipo de corridas P2P sobre o
 protocolo Nostr, prova de conceito do TCC em Tecnologias da Informação e Comunicação (UFSC —
 Araranguá). Ela existe porque este protótipo manipula material criptográfico do usuário e produz
 resultados que sustentam afirmações de uma monografia: ambos exigem regras que não dependam da
@@ -524,7 +524,7 @@ Toda feature que toque nesse material MUST incluir uma verificação explícita 
 seus critérios de aceitação — inspeção de log e do tráfego enviado, no mínimo.
 
 *Racional*: em um sistema sem intermediário, a chave privada **é** o usuário. Vazá-la não é um bug de
-protótipo: é a perda irreversível da identidade e a possibilidade de terceiros publicarem caronas em
+protótipo: é a perda irreversível da identidade e a possibilidade de terceiros publicarem corridas em
 nome dele. Nenhum prazo de TCC justifica relaxar isso.
 
 ### II. Assinatura e verificação nascem com teste (NÃO NEGOCIÁVEL)
@@ -606,7 +606,7 @@ seja auditado ou reproduzido.
 - Toda mensagem de domínio entre as duas apps que tenha destinatário conhecido MUST ser cifrada ao
   destinatário (NIP-44, entre a chave privada do remetente e a chave pública do destinatário) e
   assinada (NIP-01); só o `content` é cifrado — as tags de marcador, referência e destinatário ficam
-  em claro para filtro e roteamento. A única exceção é o `kind: 20001` (Solicitação de carona), um
+  em claro para filtro e roteamento. A única exceção é o `kind: 20001` (Solicitação de corrida), um
   anúncio a qualquer motorista, sem destinatário: só assinado, com posição e destino públicos,
   justificado em `specs/006-solicitar-corrida/spec.md` do passageiro e no contrato. Toda exceção nova
   MUST ser registrada nesta seção, com justificativa, antes de ser implementada.

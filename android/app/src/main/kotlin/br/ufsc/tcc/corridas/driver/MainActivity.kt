@@ -1,4 +1,4 @@
-package br.ufsc.tcc.caronas.driver
+package br.ufsc.tcc.corridas.driver
 
 import io.flutter.embedding.android.FlutterActivity
 

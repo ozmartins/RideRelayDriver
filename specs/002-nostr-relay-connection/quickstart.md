@@ -176,9 +176,9 @@ observação, não como aprovação disfarçada: medir em build de release é tr
   **0** sequências hexadecimais de 64 caracteres.
 - Tela de identidade: exibe só a chave pública; teste de widget garante que a privada não aparece em
   nenhum widget de texto.
-- Em repouso: `FlutterSecureKeyStorage:br.ufsc.tcc.caronas.driver.xml` contém **ciphertext base64**,
+- Em repouso: `FlutterSecureKeyStorage:br.ufsc.tcc.corridas.driver.xml` contém **ciphertext base64**,
   não a chave hexadecimal; a chave de cifragem fica no Android Keystore.
-- As preferências comuns (`br.ufsc.tcc.caronas.driver.xml`) não contêm material criptográfico.
+- As preferências comuns (`br.ufsc.tcc.corridas.driver.xml`) não contêm material criptográfico.
 
 ### Pendências honestas desta execução
 
@@ -230,8 +230,8 @@ enxuta, só com tráfego do protótipo.
 
 ### Achado para a monografia
 
-O Nostr **não oferece isolamento de aplicação**. Um app de caronas sobre relays públicos compartilha o
+O Nostr **não oferece isolamento de aplicação**. Um app de corridas sobre relays públicos compartilha o
 mesmo espaço de eventos que toda a rede social, e a separação é **convenção** — uma tag combinada entre
 as partes —, não garantia do protocolo. Qualquer terceiro pode publicar com a mesma tag, o que empurra
 toda a confiança para a verificação de assinatura e a checagem de autoria. É diferença arquitetural
-concreta em relação a um aplicativo de caronas com backend próprio, onde o isolamento é dado.
+concreta em relação a um aplicativo de corridas com backend próprio, onde o isolamento é dado.

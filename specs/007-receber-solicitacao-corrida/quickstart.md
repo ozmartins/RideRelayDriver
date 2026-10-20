@@ -1,4 +1,4 @@
-# Quickstart — Receber solicitação de carona e enviar orçamento
+# Quickstart — Receber solicitação de corrida e enviar orçamento
 
 Guia de validação manual desta feature, em `Prototipo/driver/`. Pressupõe emulador/aparelho Android
 disponível e a app do passageiro rodando em outro aparelho/emulador, com um relay em comum entre os

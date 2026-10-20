@@ -1,4 +1,4 @@
-# Contrato — Eventos Nostr do protótipo de caronas
+# Contrato — Eventos Nostr do protótipo de corridas
 
 Este é o **único** ponto de interoperabilidade entre a app do motorista (`Prototipo/driver`) e a do
 passageiro (`Prototipo/passenger`). Não há backend: qualquer mudança aqui precisa ser aplicada **de forma
@@ -11,8 +11,8 @@ idêntica nos dois lados, na mesma alteração**.
 | 01 | 2026-09-16 | Marcador `["t", "tcc-ufsc-caronas"]` no evento de teste, seção *Forma da inscrição* e regra de recepção 6 | Proposta da sessão que mantém `Prototipo/passenger`, corroborada por medição dos dois lados: sem o filtro, ~500 eventos alheios por relay no primeiro segundo (passageiro) e 125 eventos alheios em 90 s (motorista) |
 | 02 | 2026-09-16 | `"limit": 50` na seção *Forma da inscrição* | Diagnóstico das duas apps: o motorista já limitava a inscrição (`limit: 50`, mais um `since` de 24 h que este contrato não previa), o passageiro não limitava nenhuma; as duas mostravam históricos diferentes ao conectar. `since` foi descartado — no passageiro a inscrição é registrada uma vez e reenviada a cada conexão nova (regra de vivacidade do `RelayService`), e um `since` fixo no momento do registro ficaria cada vez mais velho a cada reconexão |
 | 03 | 2026-09-16 | Regra de recepção 1, esclarecida | Diagnóstico das duas apps: o motorista verifica a assinatura e só depois deduplica por `id`; o passageiro checa se o `id` já foi visto antes de verificar, para não gastar a verificação criptográfica de novo no mesmo evento chegando por outro relay. A checagem de "já visto" não usa nenhum campo do evento além do `id` como chave de um conjunto e não aceita nem exibe nada — por isso não é o "processamento" que a regra 1 proíbe antes da verificação |
-| 04 | 2026-09-20 | Define `kind: 20001` para "Solicitação de carona" (seção *Conteúdo do kind 20001*), com marcador do protótipo também exigido neste kind | Feature 006 do passageiro (botão "Solicitar corrida"): primeiro evento de domínio deste protótipo, publicado pelo passageiro assim que destino, posição atual e forma de pagamento estão disponíveis |
-| 05 | 2026-09-20 | Define `kind: 20002` para "Orçamento de carona" (seção *Conteúdo do kind 20002*): primeiro evento publicado pelo motorista, em resposta a uma solicitação — introduz a tag `["e", "<id>"]` referenciando o evento respondido, além da tag de marcador já exigida | Feature 007 do motorista (modal de solicitação recebida, botão "Enviar orçamento"): o motorista precisa responder a uma solicitação específica, não apenas anunciar algo. O consumo deste kind pelo passageiro (exibir, notificar, escolher entre orçamentos) fica fora de escopo — mesmo padrão que a emenda 04 já aplicou ao consumo do kind 20001 pelo motorista |
+| 04 | 2026-09-20 | Define `kind: 20001` para "Solicitação de corrida" (seção *Conteúdo do kind 20001*), com marcador do protótipo também exigido neste kind | Feature 006 do passageiro (botão "Solicitar corrida"): primeiro evento de domínio deste protótipo, publicado pelo passageiro assim que destino, posição atual e forma de pagamento estão disponíveis |
+| 05 | 2026-09-20 | Define `kind: 20002` para "Orçamento de corrida" (seção *Conteúdo do kind 20002*): primeiro evento publicado pelo motorista, em resposta a uma solicitação — introduz a tag `["e", "<id>"]` referenciando o evento respondido, além da tag de marcador já exigida | Feature 007 do motorista (modal de solicitação recebida, botão "Enviar orçamento"): o motorista precisa responder a uma solicitação específica, não apenas anunciar algo. O consumo deste kind pelo passageiro (exibir, notificar, escolher entre orçamentos) fica fora de escopo — mesmo padrão que a emenda 04 já aplicou ao consumo do kind 20001 pelo motorista |
 | 06 | 2026-09-20 | Amplia o `content` do `kind: 20002` com `driverName`, `carBrand`, `carModel`, `carYear` (sempre presentes) e `etaMinutes` (opcional, omitido quando não calculável) | Feature 009 do motorista: a modal de orçamentos do passageiro (feature seguinte) precisa desses dados para o motorista decidir entre propostas, e nenhum deles existia em nenhum evento até aqui |
 | 07 | 2026-09-20 | Define `kind: 20003` para "Aceitação de orçamento" e `kind: 20004` para "Recusa de orçamento" (seções *Conteúdo do kind 20003* e *20004*): o passageiro passa a se inscrever em `kind: 20002` (Forma da inscrição atualizada) e a responder a cada orçamento recebido — aceitando um e recusando os demais da mesma solicitação | Feature 008 do passageiro (persistir orçamentos recebidos, modal listando todos os de uma solicitação, botão "Aceitar"): o motorista escolhido precisa saber que venceu, e os demais precisam saber que perderam. O consumo dos kinds 20003/20004 pelo motorista fica fora de escopo — mesmo padrão já usado para o consumo do kind 20001 pelo motorista (emenda 04) e do kind 20002 pelo passageiro (emenda 05) |
 | 08 | 2026-09-21 | Define `kind: 20005` para "Localização do motorista" e `kind: 20006` para "Corrida não pode mais ser atendida" (seções *Conteúdo do kind 20005* e *20006*); o motorista passa a se inscrever também em `kind: 20003` (Forma da inscrição atualizada) | Feature 010 do motorista (modal de aceitação de orçamento, estado "Deslocando-se até o passageiro"): o motorista consome pela primeira vez o `kind: 20003` (definido na emenda 07, nunca lido antes) para saber que um orçamento seu foi aceito; ao aceitar, publica a localização periodicamente enquanto se desloca e, se uma segunda aceitação chegar enquanto já está comprometido com outra corrida, avisa o passageiro dela que não pode mais ser atendido. O consumo dos kinds 20005/20006 pelo passageiro fica fora de escopo — mesmo padrão já usado para os kinds anteriores |
@@ -35,7 +35,7 @@ idêntica nos dois lados, na mesma alteração**.
 
 ## Escopo desta feature
 
-A feature 002 **não** definiu eventos de domínio de caronas (oferta, solicitação, mensagem): definiu
+A feature 002 **não** definiu eventos de domínio de corridas (oferta, solicitação, mensagem): definiu
 apenas o evento de teste que comprovava conectividade ponta a ponta, o `kind: 1`, retirado pela
 emenda 18. Os formatos de domínio foram acrescentados a este arquivo pelas features seguintes,
 mantendo a tabela de kinds abaixo como registro único.
@@ -58,9 +58,9 @@ Todo evento segue o envelope padrão do protocolo Nostr:
 
 | Kind | Nome | Definido em | Direção | Conteúdo | Proteção do `content` |
 |------|------|-------------|---------|----------|-----------------------|
-| — | Oferta de carona | *futura* | motorista → passageiro | A definir | cifrado (previsto) |
-| `20001` | Solicitação de carona | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo | **claro — exceção** (anúncio sem destinatário; emenda 17) |
-| `20002` | Orçamento de carona | feature 007 (motorista) | motorista → relays → passageiro | JSON estruturado — ver *Conteúdo do kind 20002* abaixo | cifrado ao destinatário (emenda 17) |
+| — | Oferta de corrida | *futura* | motorista → passageiro | A definir | cifrado (previsto) |
+| `20001` | Solicitação de corrida | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo | **claro — exceção** (anúncio sem destinatário; emenda 17) |
+| `20002` | Orçamento de corrida | feature 007 (motorista) | motorista → relays → passageiro | JSON estruturado — ver *Conteúdo do kind 20002* abaixo | cifrado ao destinatário (emenda 17) |
 | `20003` | Aceitação de orçamento | feature 008 (passageiro) | passageiro → relays → motorista escolhido | Ver *Conteúdo do kind 20003* abaixo | cifrado ao destinatário (emenda 17) |
 | `20004` | Recusa de orçamento | feature 008 (passageiro) | passageiro → relays → motorista não escolhido | Ver *Conteúdo do kind 20004* abaixo | cifrado ao destinatário (emenda 17) |
 | `20005` | Localização do motorista | feature 010 (motorista) | motorista → relays → passageiro | Ver *Conteúdo do kind 20005* abaixo | cifrado ao destinatário (emenda 17) |
@@ -124,10 +124,10 @@ eventos deste protótipo, qualquer que seja o `kind`, MUST incluir a tag `["t", 
 filtrar por ela. Sem isso, distinguir tráfego do protótipo do restante da rede exigiria depender
 apenas do `kind`, que qualquer outro cliente Nostr pode escolher livremente e colidir por acaso.
 
-## Conteúdo do kind 20001 — Solicitação de carona (emenda 04)
+## Conteúdo do kind 20001 — Solicitação de corrida (emenda 04)
 
 Evento **efêmero** (faixa 20000–29999 do NIP-01: relays não retêm nem reenviam a inscrições futuras —
-uma solicitação de carona é, por natureza, um pedido momentâneo). Publicado pelo passageiro assim que
+uma solicitação de corrida é, por natureza, um pedido momentâneo). Publicado pelo passageiro assim que
 ele tem posição atual, destino e forma de pagamento disponíveis.
 
 **Tags**: exatamente a tag de marcador do protótipo, `["t", "tcc-ufsc-caronas"]` — obrigatória em qualquer
@@ -161,11 +161,11 @@ passageiro.
 publicado. A app do motorista se inscrever neste `kind` e reagir a ele é trabalho de uma feature
 futura.
 
-## Conteúdo do kind 20002 — Orçamento de carona (emenda 05, ampliada pela emenda 06)
+## Conteúdo do kind 20002 — Orçamento de corrida (emenda 05, ampliada pela emenda 06)
 
 Evento **efêmero** (mesma faixa 20000–29999 do `kind: 20001` — um orçamento perde sentido depois
 que a corrida for decidida, não há razão para o relay retê-lo). Publicado pelo motorista em
-resposta a uma solicitação de carona (`kind: 20001`) específica, quando ele decide enviar um
+resposta a uma solicitação de corrida (`kind: 20001`) específica, quando ele decide enviar um
 orçamento em vez de recusar.
 
 **Tags**: a tag de marcador do protótipo, `["t", "tcc-ufsc-caronas"]`, **e** uma tag de referência

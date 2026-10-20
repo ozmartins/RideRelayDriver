@@ -14,7 +14,7 @@ chaves assimétricas)."
 
 ### Session 2026-10-06 (decisões tomadas antes da especificação, na conversa que a originou)
 
-- Q: O kind 20001 (Solicitação de carona) é um anúncio a qualquer motorista; o passageiro não
+- Q: O kind 20001 (Solicitação de corrida) é um anúncio a qualquer motorista; o passageiro não
   conhece destinatário, logo não há chave pública para cifrar. Como tratar? → A: **exceção
   deliberada**: o 20001 continua só assinado, em claro, com a exceção justificada por escrito no
   contrato e nas constituições (posição e destino ficam públicos). Todos os demais kinds de domínio

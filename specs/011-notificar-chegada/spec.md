@@ -23,7 +23,7 @@ mensagem recebida."
 
 Como motorista a caminho do passageiro (estado "Deslocando-se até o passageiro", feature 010),
 quando minha posição atual entra num raio de 10 metros do ponto onde o passageiro solicitou a
-carona, quero que o app avise automaticamente o passageiro de que cheguei, sem que eu precise tocar
+corrida, quero que o app avise automaticamente o passageiro de que cheguei, sem que eu precise tocar
 em nada.
 
 **Why this priority**: é o pedido central da feature — sem essa notificação automática, não há
@@ -74,7 +74,7 @@ corrida e verificar que uma mensagem de chegada é enviada ao passageiro corresp
 
 - **FR-001**: O app MUST verificar, a cada atualização de posição do motorista enquanto ele
   estiver no estado "Deslocando-se até o passageiro" (feature 010), se essa posição está a 10
-  metros ou menos do ponto de origem informado na solicitação de carona que originou a corrida
+  metros ou menos do ponto de origem informado na solicitação de corrida que originou a corrida
   ativa.
 - **FR-002**: O app MUST enviar uma mensagem de chegada ao passageiro da corrida ativa na primeira
   vez que a posição do motorista entrar nesse raio de 10 metros.
@@ -109,8 +109,8 @@ corrida e verificar que uma mensagem de chegada é enviada ao passageiro corresp
 
 ## Assumptions
 
-- O "ponto onde o passageiro solicitou a carona" é a coordenada de origem (`origin`) já recebida
-  no evento de solicitação de carona (`kind: 20001`, contrato do protótipo) que deu origem ao
+- O "ponto onde o passageiro solicitou a corrida" é a coordenada de origem (`origin`) já recebida
+  no evento de solicitação de corrida (`kind: 20001`, contrato do protótipo) que deu origem ao
   orçamento aceito — este protótipo não tem, e esta feature não introduz, nenhum mecanismo de
   posição ao vivo do passageiro; a única posição do passageiro conhecida pelo motorista é a que
   ele informou no instante da solicitação.

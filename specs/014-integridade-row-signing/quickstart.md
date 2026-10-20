@@ -1,7 +1,7 @@
 # Quickstart — Integridade das avaliações (Row Signing, motorista)
 
 Guia de validação manual desta feature, em `Prototipo/driver/`. Pressupõe acesso ao arquivo do
-banco `ride_ratings.db` do aparelho/emulador (via `adb shell run-as br.ufsc.tcc.caronas.driver` +
+banco `ride_ratings.db` do aparelho/emulador (via `adb shell run-as br.ufsc.tcc.corridas.driver` +
 `sqlite3`, ou extraindo o arquivo) para inspecionar/alterar linhas diretamente, simulando uma
 adulteração fora do app.
 

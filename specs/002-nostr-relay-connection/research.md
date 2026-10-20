@@ -204,7 +204,7 @@ ambíguo se um resultado ruim vem do protocolo ou daquele operador.
 
 **Achado para a monografia**: a volatilidade da infraestrutura pública é resultado relevante por si só.
 Dos relays sondados, um não respondeu, um exigia pagamento e o mais conhecido mostrou-se intermitente
-entre duas execuções separadas por minutos. Sustentar um aplicativo de caronas sobre relays abertos de
+entre duas execuções separadas por minutos. Sustentar um aplicativo de corridas sobre relays abertos de
 terceiros implica conviver com isso — o que justifica FR-003 (falha de um relay não derruba os demais)
 como requisito, e não como refinamento.
 

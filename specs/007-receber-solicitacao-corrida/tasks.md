@@ -14,7 +14,7 @@ description: "Task list for 007-receber-solicitacao-corrida"
 
 **Contrato de interoperabilidade**: a emenda 05 de
 `specs/002-nostr-relay-connection/contracts/nostr-events.md` (novo `kind: 20002`, Orçamento de
-carona) já foi escrita e replicada de forma idêntica na app do passageiro durante o planejamento
+corrida) já foi escrita e replicada de forma idêntica na app do passageiro durante o planejamento
 desta feature (Princípio IV — contrato antes do código). Nenhuma tarefa abaixo a recria; T021
 apenas confere que a replicação permanece íntegra antes de considerar a feature concluída.
 

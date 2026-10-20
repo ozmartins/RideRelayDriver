@@ -13,7 +13,7 @@
 ### Session 2026-09-15
 
 - Q: Qual o escopo de plataformas que o app base deve suportar/validar nesta etapa? → A: Android apenas
-- Q: Qual identificador de aplicativo e nome de exibição usar para o app do motorista? → A: `br.ufsc.tcc.caronas.driver`, nome de exibição "Caronas Motorista"
+- Q: Qual identificador de aplicativo e nome de exibição usar para o app do motorista? → A: `br.ufsc.tcc.corridas.driver`, nome de exibição "Corridas Motorista"
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -21,7 +21,7 @@
 
 Como desenvolvedor do protótipo, quero um aplicativo mobile mínimo que compile e abra em um
 dispositivo/emulador, exibindo uma tela inicial vazia identificada como o app do motorista, para que
-exista uma base verificável sobre a qual as funcionalidades de caronas via Nostr serão construídas.
+exista uma base verificável sobre a qual as funcionalidades de corridas via Nostr serão construídas.
 
 **Why this priority**: Sem um app que comprovadamente inicia, nenhuma funcionalidade posterior pode ser
 desenvolvida ou demonstrada. É o esqueleto que viabiliza todo o restante do protótipo.
@@ -36,7 +36,7 @@ físico e verificando que ele abre sem erros, exibindo a tela inicial com o nome
 2. **Given** o aplicativo aberto, **When** o usuário o coloca em segundo plano e retorna a ele,
    **Then** o aplicativo permanece na mesma tela, sem travar ou reiniciar.
 3. **Given** o aplicativo instalado, **When** o usuário o localiza na lista de aplicativos do sistema,
-   **Then** ele aparece com o nome de exibição "Caronas Motorista".
+   **Then** ele aparece com o nome de exibição "Corridas Motorista".
 
 ---
 
@@ -96,7 +96,7 @@ da tela inicial passa.
 - **FR-002**: O aplicativo MUST iniciar em uma única tela inicial, sem funcionalidades de negócio,
   exibindo apenas a identificação do aplicativo.
 - **FR-003**: O aplicativo MUST ser identificado no sistema operacional pelo nome de exibição
-  "Caronas Motorista" e pelo identificador de aplicativo `br.ufsc.tcc.caronas.driver`.
+  "Corridas Motorista" e pelo identificador de aplicativo `br.ufsc.tcc.corridas.driver`.
 - **FR-004**: O aplicativo MUST executar em dispositivos Android. Android é a única plataforma no
   escopo desta etapa: iOS, web e desktop estão explicitamente fora de escopo e nenhum artefato de
   projeto para essas plataformas deve ser mantido no repositório.
@@ -133,8 +133,8 @@ Não aplicável nesta etapa: o aplicativo base não modela nem persiste dados de
 
 - O aplicativo é construído com Flutter/Dart, conforme solicitado explicitamente pelo usuário, e este é
   o único requisito tecnológico imposto nesta etapa.
-- O aplicativo do passageiro usará o identificador irmão `br.ufsc.tcc.caronas.passenger`, mantendo o
-  namespace `br.ufsc.tcc.caronas`; sua criação está fora do escopo desta feature.
+- O aplicativo do passageiro usará o identificador irmão `br.ufsc.tcc.corridas.passenger`, mantendo o
+  namespace `br.ufsc.tcc.corridas`; sua criação está fora do escopo desta feature.
 - O alvo é exclusivamente Android (emulador ou aparelho físico), decidido na clarificação: não há
   hardware Apple disponível no contexto do trabalho e web/desktop não agregam à prova de conceito.
   Um eventual suporte a iOS seria adicionado como feature própria no futuro.

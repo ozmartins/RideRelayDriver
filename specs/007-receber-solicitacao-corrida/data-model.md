@@ -2,7 +2,7 @@
 
 ## `RideRequestReceived` (novo, `lib/domain/ride_request_received.dart`)
 
-Representa uma solicitação de carona recebida e já verificada (assinatura válida, marcador
+Representa uma solicitação de corrida recebida e já verificada (assinatura válida, marcador
 presente, deduplicada — regras de recepção do contrato, já aplicadas pelo `EventFeed` antes de
 qualquer código desta feature existir).
 

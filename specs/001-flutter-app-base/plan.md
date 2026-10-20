@@ -6,9 +6,9 @@
 
 ## Summary
 
-Criar o esqueleto executável do aplicativo do motorista do protótipo de caronas P2P: um projeto Flutter
+Criar o esqueleto executável do aplicativo do motorista do protótipo de corridas P2P: um projeto Flutter
 mínimo em `Prototipo/driver`, com uma única tela inicial sem lógica de negócio, identificado como
-"Caronas Motorista" (`br.ufsc.tcc.caronas.driver`), rodando apenas em Android, com um teste de widget de
+"Corridas Motorista" (`br.ufsc.tcc.corridas.driver`), rodando apenas em Android, com um teste de widget de
 sanidade, análise estática limpa e um `README.md` documentando instalação, execução e testes.
 
 A abordagem é usar o scaffold oficial (`flutter create`) restrito a Android, remover o boilerplate de
@@ -88,10 +88,10 @@ scaffold do spec-kit. O `flutter create` é aplicado **sobre esse diretório exi
 ```text
 Prototipo/driver/
 ├── lib/
-│   └── main.dart            # entrypoint + tela inicial vazia (CaronasDriverApp, HomeScreen)
+│   └── main.dart            # entrypoint + tela inicial vazia (CorridasDriverApp, HomeScreen)
 ├── test/
 │   └── home_screen_test.dart # teste de sanidade: a tela inicial monta e exibe o título
-├── android/                 # projeto Android gerado (applicationId br.ufsc.tcc.caronas.driver)
+├── android/                 # projeto Android gerado (applicationId br.ufsc.tcc.corridas.driver)
 ├── pubspec.yaml             # nome do pacote: driver; sem dependências de terceiros
 ├── analysis_options.yaml    # flutter_lints
 ├── README.md                # comandos de setup, execução e teste (FR-006)

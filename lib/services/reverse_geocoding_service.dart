@@ -46,7 +46,7 @@ class PhotonReverseGeocodingService implements ReverseGeocodingService {
   /// A Photon bloqueia com HTTP 403 o `User-Agent` padrão do `package:http`
   /// (mesma descoberta do passageiro, D4 da feature 005 dele).
   static const _userAgent =
-      'CaronasMotorista/1.0 (br.ufsc.tcc.caronas.driver; academic '
+      'CorridasMotorista/1.0 (br.ufsc.tcc.caronas.driver; academic '
       'prototype, UFSC)';
 
   final http.Client _client;

@@ -123,7 +123,7 @@ class DriverProfile {
       anoVeiculo <= DateTime.now().year + 1;
 
   /// Se o motorista aceita a forma de pagamento [wireValue] de uma solicitação
-  /// de carona (valor do campo `payment` do `kind: 20001`). Um valor que não é
+  /// de corrida (valor do campo `payment` do `kind: 20001`). Um valor que não é
   /// um dos três do contrato não é aceito.
   bool acceptsPayment(String wireValue) {
     final metodo = PaymentMethod.fromWire(wireValue);

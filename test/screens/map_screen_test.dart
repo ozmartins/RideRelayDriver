@@ -250,7 +250,7 @@ DriverProfile perfilComPreco(double precoPorKm) => DriverProfile(
 );
 
 /// Monta um payload de `kind: 20001` já assinado — a mesma solicitação de
-/// carona que o passageiro publicaria (emenda 04 do contrato).
+/// corrida que o passageiro publicaria (emenda 04 do contrato).
 Map<String, dynamic> solicitacaoAssinada({
   double originLat = -28.9298,
   double originLon = -49.4753,
@@ -774,19 +774,19 @@ void main() {
           await controlador.start();
 
           await chegaSolicitacao(tester, gateway);
-          expect(find.text('Solicitação de carona'), findsNothing);
+          expect(find.text('Solicitação de corrida'), findsNothing);
 
           servicoResponde(online: true);
           await tester.pump();
           await tester.pump(const Duration(seconds: 2));
-          expect(find.text('Solicitação de carona'), findsNothing);
+          expect(find.text('Solicitação de corrida'), findsNothing);
 
           location.emitir(posicaoDeTeste());
           await tester.pump();
           await tester.pump();
 
           expect(find.text('Você está online'), findsOneWidget);
-          expect(find.text('Solicitação de carona'), findsOneWidget);
+          expect(find.text('Solicitação de corrida'), findsOneWidget);
         },
       );
 
@@ -808,7 +808,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(find.text('Solicitação de carona'), findsNothing);
+        expect(find.text('Solicitação de corrida'), findsNothing);
         expect(find.text('Você está offline'), findsOneWidget);
       });
 
@@ -831,7 +831,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(find.text('Solicitação de carona'), findsNothing);
+        expect(find.text('Solicitação de corrida'), findsNothing);
         expect(find.text('Você está offline'), findsOneWidget);
       });
 
@@ -849,7 +849,7 @@ void main() {
 
         await chegaSolicitacao(tester, gateway);
 
-        expect(find.text('Solicitação de carona'), findsOneWidget);
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
       });
     });
 
@@ -911,10 +911,10 @@ void main() {
       await ficarOnline(tester, service);
 
       await receber(tester, m.gateway, 'pix');
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
 
       await receber(tester, m.gateway, 'valor-desconhecido');
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
     });
 
     testWidgets('pagamento da lista aceita abre a modal', (tester) async {
@@ -928,7 +928,7 @@ void main() {
 
       await receber(tester, m.gateway, 'dinheiro');
 
-      expect(find.text('Solicitação de carona'), findsOneWidget);
+      expect(find.text('Solicitação de corrida'), findsOneWidget);
     });
 
     testWidgets('uma recusada não atrapalha a próxima aceita', (tester) async {
@@ -943,7 +943,7 @@ void main() {
       await receber(tester, m.gateway, 'cartao');
       await receber(tester, m.gateway, 'dinheiro');
 
-      expect(find.text('Solicitação de carona'), findsOneWidget);
+      expect(find.text('Solicitação de corrida'), findsOneWidget);
     });
 
     testWidgets('o cadastro editado vale sem reiniciar o app', (tester) async {
@@ -958,7 +958,7 @@ void main() {
       await ficarOnline(tester, service);
 
       await receber(tester, m.gateway, 'pix');
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
 
       perfil.value = soDinheiro.copyWith(
         paymentMethods: {PaymentMethod.cash, PaymentMethod.pix},
@@ -966,7 +966,7 @@ void main() {
       await tester.pump();
       await receber(tester, m.gateway, 'pix');
 
-      expect(find.text('Solicitação de carona'), findsOneWidget);
+      expect(find.text('Solicitação de corrida'), findsOneWidget);
     });
   });
 
@@ -1148,7 +1148,7 @@ void main() {
     );
   });
 
-  group('MapScreen — modal de solicitação de carona (US1/US2/US3 da feature '
+  group('MapScreen — modal de solicitação de corrida (US1/US2/US3 da feature '
       '007)', () {
     testWidgets(
       'solicitação recebida com o motorista online abre a modal (FR-001)',
@@ -1169,7 +1169,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(find.text('Solicitação de carona'), findsOneWidget);
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
       },
     );
 
@@ -1187,7 +1187,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
     });
 
     testWidgets(
@@ -1222,13 +1222,13 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(find.text('Solicitação de carona'), findsOneWidget);
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
 
         await tester.tap(find.widgetWithText(TextButton, 'Recusar corrida'));
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Solicitação de carona'),
+          find.text('Solicitação de corrida'),
           findsOneWidget,
           reason:
               'a segunda solicitação deve abrir imediatamente após a primeira',
@@ -1264,7 +1264,7 @@ void main() {
       expect(ambiente.gateway.publicados, hasLength(1));
       final publicado = ambiente.gateway.publicados.single;
       expect(publicado.kind, NostrEvent.kindRideQuote);
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
     });
 
     testWidgets(
@@ -1464,7 +1464,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Solicitação de carona'), findsNothing);
+      expect(find.text('Solicitação de corrida'), findsNothing);
     });
 
     testWidgets(
@@ -1505,7 +1505,7 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(
-          find.text('Solicitação de carona'),
+          find.text('Solicitação de corrida'),
           findsNothing,
           reason: 'ainda atrás da modal de aceitação, que segue aberta',
         );
@@ -1514,7 +1514,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Solicitação de carona'),
+          find.text('Solicitação de corrida'),
           findsNothing,
           reason: 'descartada pela transição — não deveria aparecer depois',
         );
@@ -2686,7 +2686,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        expect(find.text('Solicitação de carona'), findsOneWidget);
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
       },
     );
   });

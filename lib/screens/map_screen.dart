@@ -41,7 +41,7 @@ import 'ride_request_modal.dart';
 
 /// Tela inicial do aplicativo: mapa centrado na posição real do motorista,
 /// com um indicador dessa posição (US1), o controle de status online/offline
-/// (US2), a modal de solicitação de carona recebida (feature 007) e, desde a
+/// (US2), a modal de solicitação de corrida recebida (feature 007) e, desde a
 /// feature 010, a modal de aceitação de orçamento, o estado "Deslocando-se
 /// até o passageiro" e a publicação de localização durante o deslocamento.
 ///
@@ -374,7 +374,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Reage a qualquer mudança do `EventFeed`, tratando solicitações de
-  /// carona (`kind: 20001`, FR-001 da feature 007) e aceitações de
+  /// corrida (`kind: 20001`, FR-001 da feature 007) e aceitações de
   /// orçamento (`kind: 20003`, FR-001 da feature 010) ainda não
   /// processadas.
   void _aoAtualizarFeed() {

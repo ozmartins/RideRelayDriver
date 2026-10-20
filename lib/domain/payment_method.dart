@@ -21,7 +21,7 @@ enum PaymentMethod {
   /// `specs/005-formas-pagamento/research.md`).
   final String storageValue;
 
-  /// Valor do campo `payment` da solicitação de carona (`kind: 20001`,
+  /// Valor do campo `payment` da solicitação de corrida (`kind: 20001`,
   /// emenda 04 do contrato de eventos).
   final String wireValue;
 

@@ -66,7 +66,7 @@ class ForegroundTaskBackgroundService implements BackgroundService {
   @override
   final MessageChannel channel;
 
-  static const String _title = 'Caronas Motorista';
+  static const String _title = 'Corridas Motorista';
 
   @override
   Future<bool> get isRunning => FlutterForegroundTask.isRunningService;

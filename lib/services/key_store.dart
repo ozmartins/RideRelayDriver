@@ -42,7 +42,7 @@ class SecureKeyStore implements KeyStore {
   /// a falha chega aqui como exceção e vira [KeyStoreUnavailable], visível ao
   /// motorista (Princípio I).
   static const AndroidOptions androidOptions = AndroidOptions(
-    storageNamespace: 'br.ufsc.tcc.caronas.driver',
+    storageNamespace: 'br.ufsc.tcc.corridas.driver',
     resetOnError: false,
   );
 

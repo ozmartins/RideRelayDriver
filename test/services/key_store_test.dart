@@ -16,7 +16,7 @@ void main() {
     test('isola os dados no namespace do aplicativo do motorista', () {
       expect(
         SecureKeyStore.androidOptions.toMap()['storageNamespace'],
-        'br.ufsc.tcc.caronas.driver',
+        'br.ufsc.tcc.corridas.driver',
       );
     });
   });

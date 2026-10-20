@@ -11,7 +11,7 @@ import '../services/route_distance_service.dart';
 import 'identidade_visual.dart';
 
 /// Modal exibida quando o motorista, online, recebe uma solicitação de
-/// carona (feature 007).
+/// corrida (feature 007).
 ///
 /// Widget apresentacional (como `CadastroScreen`): [onSendQuote] devolve uma
 /// mensagem de erro em caso de falha (nenhum relay conectado) ou `null` em
@@ -236,7 +236,7 @@ class _RideRequestModalState extends State<RideRequestModal> {
   Widget build(BuildContext context) {
     final total = _total;
     return ModalTematizado(
-      titulo: 'Solicitação de carona',
+      titulo: 'Solicitação de corrida',
       conteudo: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

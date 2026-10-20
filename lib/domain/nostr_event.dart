@@ -59,11 +59,11 @@ class NostrEvent {
   /// feature 010, nenhum evento recebido pelo motorista precisava delas.
   final List<List<String>> tags;
 
-  /// Kind da solicitação de carona, publicada pelo passageiro (emenda 04 do
+  /// Kind da solicitação de corrida, publicada pelo passageiro (emenda 04 do
   /// contrato de eventos, feature 006 do passageiro).
   static const int kindRideRequest = 20001;
 
-  /// Kind do orçamento de carona, publicado pelo motorista em resposta a uma
+  /// Kind do orçamento de corrida, publicado pelo motorista em resposta a uma
   /// solicitação (emenda 05 do contrato de eventos, feature 007).
   static const int kindRideQuote = 20002;
 

@@ -18,7 +18,7 @@ class IdentityScreen extends StatelessWidget {
     final current = identity;
 
     return TelaDeConteudo(
-      tituloBarra: 'Caronas Motorista',
+      tituloBarra: 'Corridas Motorista',
       titulo: 'Minha identidade',
       child: current == null
           ? const Center(

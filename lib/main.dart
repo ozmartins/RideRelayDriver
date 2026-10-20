@@ -36,13 +36,13 @@ import 'services/sent_quotes_store.dart';
 import 'services/sqflite_cadastro_store.dart';
 
 /// Título do aplicativo, usado como identificação dele no sistema.
-const String appTitle = 'Caronas Motorista';
+const String appTitle = 'Corridas Motorista';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await OrsApiKey.load();
   ForegroundTaskBackgroundService.initCommunicationPort();
-  runApp(const CaronasDriverApp());
+  runApp(const CorridasDriverApp());
 }
 
 /// Raiz do aplicativo do motorista.
@@ -50,8 +50,8 @@ Future<void> main() async {
 /// Compõe as dependências aqui, com injeção explícita: cada serviço recebe seu
 /// armazenamento ou transporte, o que permite substituí-los por dublês nos
 /// testes (decisão D5).
-class CaronasDriverApp extends StatefulWidget {
-  const CaronasDriverApp({
+class CorridasDriverApp extends StatefulWidget {
+  const CorridasDriverApp({
     super.key,
     this.keyStore,
     this.keyValueStore,
@@ -90,10 +90,10 @@ class CaronasDriverApp extends StatefulWidget {
   final ReverseGeocodingService? reverseGeocodingService;
 
   @override
-  State<CaronasDriverApp> createState() => _CaronasDriverAppState();
+  State<CorridasDriverApp> createState() => _CorridasDriverAppState();
 }
 
-class _CaronasDriverAppState extends State<CaronasDriverApp>
+class _CorridasDriverAppState extends State<CorridasDriverApp>
     with WidgetsBindingObserver {
   late final IdentityService _identityService = IdentityService(
     widget.keyStore ?? SecureKeyStore(),
@@ -149,7 +149,7 @@ class _CaronasDriverAppState extends State<CaronasDriverApp>
   /// Mesmo `KeyValueStore` já usado por `RelayRepository` — os dois novos
   /// dados persistidos da feature 010 (D1/D6 de `research.md`) não
   /// justificam um parâmetro injetável próprio: testes que já injetam
-  /// `keyValueStore` (via `CaronasDriverApp`) recebem estes dois dublês
+  /// `keyValueStore` (via `CorridasDriverApp`) recebem estes dois dublês
   /// automaticamente, sobre o mesmo armazenamento em memória.
   late final RideStateStore _rideStateStore = PreferencesRideStateStore(
     widget.keyValueStore ?? PreferencesStore(),

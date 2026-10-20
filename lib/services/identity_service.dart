@@ -71,7 +71,7 @@ class IdentityService {
     return Identity(publicKey: generated.public, privateKey: generated.private);
   }
 
-  /// Assina um orçamento de carona (`kind: 20002`) em resposta à solicitação
+  /// Assina um orçamento de corrida (`kind: 20002`) em resposta à solicitação
   /// referenciada por [quote] (FR-011, FR-017 da feature 007; D4/D5 de
   /// `specs/007-receber-solicitacao-corrida/research.md`; campos do
   /// motorista e `etaMinutes` opcional, emenda 06, D2 de

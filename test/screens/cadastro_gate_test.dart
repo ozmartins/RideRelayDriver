@@ -86,7 +86,7 @@ const _perfilExistente = DriverProfile(
   anoVeiculo: 2018,
 );
 
-Widget _app(CadastroStore cadastroStore) => CaronasDriverApp(
+Widget _app(CadastroStore cadastroStore) => CorridasDriverApp(
   keyStore: _FakeKeyStore(),
   keyValueStore: _FakeKeyValueStore(),
   gateway: _FakeGateway(),

@@ -46,7 +46,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TelaDeConteudo(
-      tituloBarra: 'Caronas Motorista',
+      tituloBarra: 'Corridas Motorista',
       titulo: 'Mais',
       child: StreamBuilder<void>(
         stream: relayService.statusChanges,

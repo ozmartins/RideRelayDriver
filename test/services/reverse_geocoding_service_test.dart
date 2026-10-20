@@ -45,7 +45,7 @@ void main() {
     expect(chamada.path, '/reverse');
     expect(chamada.queryParameters['lat'], '-28.9298');
     expect(chamada.queryParameters['lon'], '-49.4753');
-    expect(cabecalhos['User-Agent'], contains('CaronasMotorista'));
+    expect(cabecalhos['User-Agent'], contains('CorridasMotorista'));
     expect(
       chamada.queryParameters.keys,
       unorderedEquals(['lat', 'lon', 'lang', 'limit']),

@@ -62,7 +62,7 @@ class _RelaysScreenState extends State<RelaysScreen> {
   @override
   Widget build(BuildContext context) {
     return TelaDeConteudo(
-      tituloBarra: 'Caronas Motorista',
+      tituloBarra: 'Corridas Motorista',
       titulo: 'Relays',
       child: Column(
         children: [

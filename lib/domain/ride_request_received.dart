@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'nostr_event.dart';
 
-/// Solicitação de carona recebida, já verificada e deduplicada pelo
+/// Solicitação de corrida recebida, já verificada e deduplicada pelo
 /// `EventFeed` (regras de recepção do contrato de eventos) antes de chegar
 /// aqui.
 ///
@@ -61,7 +61,7 @@ class RideRequestReceived {
         payment: content['payment'] as String,
       );
     } on Object catch (erro) {
-      throw FormatException('Solicitação de carona malformada: $erro');
+      throw FormatException('Solicitação de corrida malformada: $erro');
     }
   }
 

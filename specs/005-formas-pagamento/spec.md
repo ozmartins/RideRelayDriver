@@ -128,7 +128,7 @@ formas de pagamento e verificar que o novo conjunto é o que aparece na consulta
   (`specs/002-nostr-relay-connection/contracts/nostr-events.md`) nem publicação em relay. O Princípio
   IV da constituição não se aplica; nada aqui precisa ser replicado em `Prototipo/passenger`.
 - Usar essa informação para casar motoristas e passageiros pela forma de pagamento desejada (ver
-  `kind: 20001`, "Solicitação de carona", do contrato de eventos do passageiro) é trabalho de uma
+  `kind: 20001`, "Solicitação de corrida", do contrato de eventos do passageiro) é trabalho de uma
   feature futura, fora de escopo aqui — esta feature só coleta e persiste a preferência do motorista.
 - Um cadastro já existente, persistido por uma versão anterior do aplicativo sem nenhuma forma de
   pagamento, **não** é tratado como caso especial: cai na mesma regra de campo obrigatório ausente já

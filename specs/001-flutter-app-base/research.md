@@ -27,11 +27,11 @@ verificado no ambiente real de desenvolvimento e o que foi decidido na clarifica
 
 ## D3 — Identificador e nome do aplicativo
 
-- **Decision**: `--org br.ufsc.tcc.caronas` + nome de projeto `driver` → `applicationId`
-  `br.ufsc.tcc.caronas.driver`; nome de exibição "Caronas Motorista" em `android/app/src/main/AndroidManifest.xml`.
+- **Decision**: `--org br.ufsc.tcc.corridas` + nome de projeto `driver` → `applicationId`
+  `br.ufsc.tcc.corridas.driver`; nome de exibição "Corridas Motorista" em `android/app/src/main/AndroidManifest.xml`.
 - **Rationale**: decidido na clarificação. O `applicationId` é derivado automaticamente por
   `flutter create` a partir de `--org` + nome do projeto, sem edição manual. O par
-  `br.ufsc.tcc.caronas.passenger` permanece reservado para a outra app, permitindo as duas instaladas no
+  `br.ufsc.tcc.corridas.passenger` permanece reservado para a outra app, permitindo as duas instaladas no
   mesmo aparelho para testar a troca de eventos Nostr ponta a ponta.
 - **Alternatives considered**: editar o `applicationId` manualmente depois — descartado por ser mais
   trabalhoso e propenso a ficar inconsistente com o namespace Kotlin/Gradle gerado.
@@ -41,7 +41,7 @@ verificado no ambiente real de desenvolvimento e o que foi decidido na clarifica
 - **Decision**: nome do pacote `driver` (`--project-name driver`), igual ao diretório.
 - **Rationale**: o diretório já é `Prototipo/driver`; `driver` é um identificador Dart válido
   (minúsculas, sem hífen) e mantém os imports internos curtos (`package:driver/...`).
-- **Alternatives considered**: `caronas_driver` — mais descritivo, mas divergiria do nome do diretório e
+- **Alternatives considered**: `corridas_driver` — mais descritivo, mas divergiria do nome do diretório e
   do caminho já consolidado no CLAUDE.md do repositório.
 
 ## D5 — `flutter create` sobre diretório não vazio
@@ -60,7 +60,7 @@ verificado no ambiente real de desenvolvimento e o que foi decidido na clarifica
 ## D6 — Conteúdo da tela "vazia"
 
 - **Decision**: substituir o app de contador do template por um `MaterialApp` com `title`
-  "Caronas Motorista", `AppBar` com o mesmo título e um corpo centralizado com uma mensagem de
+  "Corridas Motorista", `AppBar` com o mesmo título e um corpo centralizado com uma mensagem de
   placeholder identificando o app do motorista. Sem `FloatingActionButton`, sem `setState`, sem contador.
 - **Rationale**: "vazio" no spec significa sem lógica de negócio; deixar o contador gerado seria lógica
   de exemplo sem propósito, que o avaliador do TCC leria como código morto. O `Scaffold`/`AppBar` mínimo

@@ -8,7 +8,7 @@
 
 ## Summary
 
-O motorista passa a se inscrever no `kind: 20001` (Solicitação de carona) além do `kind: 1`. Ao
+O motorista passa a se inscrever no `kind: 20001` (Solicitação de corrida) além do `kind: 1`. Ao
 chegar uma solicitação válida com o motorista online, uma modal é aberta com origem, destino, as
 duas distâncias reais (motorista→origem, origem→destino, via `open_route_service`) e o total
 (distância × preço por quilômetro, pré-preenchido do cadastro e editável só para esta corrida).
@@ -59,7 +59,7 @@ Avaliação contra `.specify/memory/constitution.md` v2.4.0:
 | I. Segredo criptográfico não vaza | N/A direto — a chave privada assina o evento de orçamento como já assina o de teste; nenhum caminho novo de exposição é introduzido. |
 | II. Assinatura e verificação nascem com teste | **Aplica-se.** `IdentityService.signRideQuote` (novo) e a recepção do `kind: 20001` (que passa a entrar no `acceptedKinds` do `EventFeed`) MUST ter teste cobrindo caso válido e inválido — a verificação de assinatura na recepção já é código existente e testado (feature 002); o teste novo cobre o parsing do conteúdo. **PASS**, cumprido em tasks.md. |
 | III. Dependência de terceiros exige decisão registrada | **Aplica-se.** `open_route_service` volta ao `pubspec.yaml` do motorista. Decisão registrada em `research.md` D1, referenciando a decisão já tomada e testada na feature 007 do passageiro. **PASS.** |
-| IV. O contrato de evento vem antes do código | **Aplica-se — é o cerne desta feature.** Novo `kind: 20002` (Orçamento de carona) especificado na emenda 05 de `specs/002-nostr-relay-connection/contracts/nostr-events.md` **antes** de qualquer código desta feature, e replicado de forma idêntica em `Prototipo/passenger/specs/002-nostr-relay-connection/contracts/nostr-events.md` na mesma alteração (corpo conferido por diff). **PASS.** |
+| IV. O contrato de evento vem antes do código | **Aplica-se — é o cerne desta feature.** Novo `kind: 20002` (Orçamento de corrida) especificado na emenda 05 de `specs/002-nostr-relay-connection/contracts/nostr-events.md` **antes** de qualquer código desta feature, e replicado de forma idêntica em `Prototipo/passenger/specs/002-nostr-relay-connection/contracts/nostr-events.md` na mesma alteração (corpo conferido por diff). **PASS.** |
 | V. Simplicidade proporcional e rastreabilidade acadêmica | **Aplica-se.** A fila de solicitações (FR-015) e a abstração `RouteDistanceService` (mais leve que o `RouteService` do passageiro — sem `points`/`Polyline`, que esta modal não usa) são decisões registradas em `research.md` D2/D3, com alternativas descartadas. **PASS.** |
 | Restrições de Segurança e Privacidade — exceção de roteamento (emenda 2.4.0) | **Aplica-se e motivou a emenda 2.4.0.** A chamada motorista→origem usa a posição atual do motorista (coberta já pela 2.3.0); a chamada origem→destino usa duas coordenadas de terceiro (a solicitação recebida), coberta pela generalização da 2.4.0. Nenhuma chamada inclui `pubkey`, nome ou apelido de exibição — só coordenadas. **PASS**, condicionado à emenda 2.4.0 já commitada separadamente do código desta feature. |
 

@@ -62,10 +62,10 @@ flutter run
 **Esperado**:
 
 - o app compila, instala e abre em até ~5 s após o lançamento (SC-002);
-- a tela inicial exibe o título "Caronas Motorista", sem contador nem botão flutuante;
+- a tela inicial exibe o título "Corridas Motorista", sem contador nem botão flutuante;
 - **nenhum diálogo de permissão** é exibido (SC-005);
 - colocar o app em segundo plano e retornar mantém a mesma tela (User Story 1, cenário 2);
-- na gaveta de aplicativos do sistema, o app aparece como "Caronas Motorista" (User Story 1, cenário 3).
+- na gaveta de aplicativos do sistema, o app aparece como "Corridas Motorista" (User Story 1, cenário 3).
 
 ## Cenário 5 — Tema e resoluções (SC-004)
 

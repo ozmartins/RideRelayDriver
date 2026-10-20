@@ -28,7 +28,7 @@
 ### User Story 1 - Conectar-se a relays e enxergar o estado da conexão (Priority: P1)
 
 Como motorista, quero que o aplicativo se conecte aos relays configurados ao ser aberto e me mostre
-claramente quais estão conectados, para saber se estou ou não alcançável pela rede de caronas.
+claramente quais estão conectados, para saber se estou ou não alcançável pela rede de corridas.
 
 **Why this priority**: sem conexão estabelecida e observável, nenhuma troca de eventos é possível e
 nenhuma das demais histórias tem como ser validada. É também o dado central da avaliação de viabilidade
@@ -216,7 +216,7 @@ reabrir o aplicativo, verificando que a lista persistiu.
 - Esta feature reabre decisões da feature `001-flutter-app-base`, que declarava ausência de dependências
   de terceiros e proibia acesso a rede: ambas as restrições valiam apenas para a base vazia e são
   superadas aqui de forma deliberada.
-- O evento publicado nesta etapa é um **evento de teste genérico**, não um formato de domínio de caronas.
+- O evento publicado nesta etapa é um **evento de teste genérico**, não um formato de domínio de corridas.
   Os formatos de oferta, solicitação e mensagem entre pares são objeto de features posteriores e precisam
   ser idênticos nas apps do motorista e do passageiro.
 - A lista padrão de relays será composta por relays públicos gratuitos e sem exigência de autenticação,

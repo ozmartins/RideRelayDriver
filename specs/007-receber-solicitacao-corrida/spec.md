@@ -36,7 +36,7 @@ orçamento' e 'Recusar corrida'."
 ### User Story 1 - Ver a modal de uma solicitação recebida, com as distâncias reais e o total
 calculados (Priority: P1)
 
-Como motorista online, quando uma solicitação de carona chega, quero ver imediatamente uma modal
+Como motorista online, quando uma solicitação de corrida chega, quero ver imediatamente uma modal
 com a origem, o destino, a distância até a origem, a distância da corrida e o valor total, para
 decidir se topo a corrida sem precisar fazer nenhuma conta de cabeça.
 
@@ -44,13 +44,13 @@ decidir se topo a corrida sem precisar fazer nenhuma conta de cabeça.
 para o motorista decidir.
 
 **Independent Test**: com o motorista online e posição disponível, simular o recebimento de um
-evento de solicitação de carona (kind 20001) e verificar que a modal aparece com origem, destino,
+evento de solicitação de corrida (kind 20001) e verificar que a modal aparece com origem, destino,
 as duas distâncias e o total calculado a partir do preço por quilômetro padrão do cadastro.
 
 **Acceptance Scenarios**:
 
 1. **Given** o motorista online com posição atual disponível, **When** chega uma solicitação de
-   carona válida, **Then** uma modal é exibida com o ponto de origem, o ponto de destino, a
+   corrida válida, **Then** uma modal é exibida com o ponto de origem, o ponto de destino, a
    distância do motorista até a origem, a distância entre origem e destino, o preço por quilômetro
    (pré-preenchido com o valor do cadastro) e o total (distância origem-destino × preço).
 2. **Given** a modal aberta, **When** o cálculo das distâncias termina, **Then** os valores
@@ -104,7 +104,7 @@ e nenhum evento é publicado.
 
 1. **Given** a modal aberta, **When** o motorista toca em "Recusar corrida", **Then** a modal fecha
    imediatamente e nenhum evento é publicado.
-2. **Given** a modal recusada, **When** outra solicitação de carona chega depois, **Then** uma nova
+2. **Given** a modal recusada, **When** outra solicitação de corrida chega depois, **Then** uma nova
    modal é exibida normalmente para ela (recusar uma não impede ver as seguintes).
 
 ---
@@ -133,10 +133,10 @@ e nenhum evento é publicado.
 
 ### Functional Requirements
 
-- **FR-001**: O sistema MUST exibir uma modal quando uma solicitação de carona válida (kind 20001,
+- **FR-001**: O sistema MUST exibir uma modal quando uma solicitação de corrida válida (kind 20001,
   já verificada e deduplicada pelas regras de recepção existentes) for recebida e o motorista
   estiver com o status online (feature 004-mapa-status-motorista).
-- **FR-002**: O sistema MUST NOT exibir modal para uma solicitação de carona recebida enquanto o
+- **FR-002**: O sistema MUST NOT exibir modal para uma solicitação de corrida recebida enquanto o
   motorista estiver offline.
 - **FR-003**: A modal MUST exibir o ponto de origem e o ponto de destino da solicitação.
 - **FR-004**: O sistema MUST calcular e exibir na modal a distância do trajeto rodoviário real

@@ -29,7 +29,7 @@ flutter run
 ```
 
 1. Instale o aplicativo do zero (ou limpe os dados do app: `adb shell pm clear
-   br.ufsc.tcc.caronas.driver`) e abra-o.
+   br.ufsc.tcc.corridas.driver`) e abra-o.
 
 **Esperado**: o formulário de cadastro é a primeira tela exibida, antes de qualquer tela de relays,
 eventos ou identidade. Cronometre o preenchimento com dados válidos — deve ser possível concluir em
@@ -77,7 +77,7 @@ aplicativo — sem precisar reinstalar.
 ## Cenário 7 — Cadastro corrompido não trava a inicialização (Edge Cases, FR-010)
 
 ```bash
-adb shell "run-as br.ufsc.tcc.caronas.driver sqlite3 /data/data/br.ufsc.tcc.caronas.driver/databases/<nome-do-banco>.db \"UPDATE driver_profile SET uf = 'ZZ' WHERE id = 1;\""
+adb shell "run-as br.ufsc.tcc.corridas.driver sqlite3 /data/data/br.ufsc.tcc.corridas.driver/databases/<nome-do-banco>.db \"UPDATE driver_profile SET uf = 'ZZ' WHERE id = 1;\""
 ```
 
 (ajuste o nome do arquivo de banco conforme definido na implementação; o comando corrompe a UF do

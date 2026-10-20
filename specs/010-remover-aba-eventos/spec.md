@@ -4,7 +4,7 @@
 
 - **FR-001** A navegação inferior tem quatro destinos: Mapa, Relays, Identidade e Cadastro.
 - **FR-002** Nenhuma função do app depende da aba: conexão aos relays, reconexão automática,
-  `EventFeed` e o consumo dos eventos de corrida ficam em `_CaronasDriverAppState` e em `MapScreen`.
+  `EventFeed` e o consumo dos eventos de corrida ficam em `_CorridasDriverAppState` e em `MapScreen`.
 - **FR-003** O estado dos relays segue visível na aba "Relays".
 
 ## Consequências

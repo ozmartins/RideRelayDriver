@@ -10,7 +10,7 @@ esquemas, modelos Dart de domínio, DTOs ou serialização a definir.
 
 | Elemento | Tipo | Persistência | Observações |
 |----------|------|--------------|-------------|
-| Título do app | constante de compilação (`String`) | nenhuma | "Caronas Motorista"; usado no `MaterialApp.title`, na `AppBar` e no `android:label` |
+| Título do app | constante de compilação (`String`) | nenhuma | "Corridas Motorista"; usado no `MaterialApp.title`, na `AppBar` e no `android:label` |
 | Tema | derivado do sistema | nenhuma | `ThemeMode.system` com os esquemas padrão do Material; nada é escolhido ou salvo pelo usuário (SC-004) |
 
 A tela inicial é **stateless**: não há `setState`, nenhum estado mutável, nenhum ciclo de vida a modelar.
@@ -25,14 +25,14 @@ Não aplicável — não existe máquina de estados nesta feature.
 
 O único identificador estável introduzido é o do **aplicativo**, não de dados:
 
-- `applicationId` / namespace Android: `br.ufsc.tcc.caronas.driver`
+- `applicationId` / namespace Android: `br.ufsc.tcc.corridas.driver`
 - nome de pacote Dart: `driver`
-- nome de exibição: `Caronas Motorista`
-- identificador irmão reservado (fora desta feature): `br.ufsc.tcc.caronas.passenger`
+- nome de exibição: `Corridas Motorista`
+- identificador irmão reservado (fora desta feature): `br.ufsc.tcc.corridas.passenger`
 
 ## O que vem depois (fora desta feature)
 
 Registrado apenas para deixar claro por que este documento está vazio, sem comprometer decisão alguma:
-as entidades reais do protótipo (identidade de chave pública/privada Nostr, oferta de carona, solicitação,
+as entidades reais do protótipo (identidade de chave pública/privada Nostr, oferta de corrida, solicitação,
 mensagem entre pares) nascem junto das features de comunicação via relays, onde cada uma será um **formato
 de evento Nostr** replicado de forma idêntica nas apps do motorista e do passageiro.

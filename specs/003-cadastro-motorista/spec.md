@@ -21,7 +21,7 @@ veículo, para que o aplicativo saiba quem eu sou e o que dirijo antes de eu pod
 funções.
 
 **Why this priority**: sem esse cadastro não há como demonstrar, no protótipo, que o motorista está
-identificado por um perfil de caronas (nome e veículo), e não apenas por uma chave criptográfica —
+identificado por um perfil de corridas (nome e veículo), e não apenas por uma chave criptográfica —
 condição para qualquer história seguinte que dependa desse perfil.
 
 **Independent Test**: instalar o aplicativo, abri-lo pela primeira vez e verificar que o formulário de

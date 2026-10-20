@@ -3,7 +3,7 @@
 **Feature**: `025-conexao-em-segundo-plano` · **App**: `driver/` · **Data**: 2026-10-11 · **Status**: Draft
 **Contrato de eventos**: não muda (nenhum kind, tag ou formato novo). Sem contrapartida no passageiro.
 **Entrada**: "o app do motorista precisa manter a conexão com o relay mesmo se o usuário fechar o app, para
-gerar uma notificação push caso uma solicitação de carona chegue e o app não esteja em primeiro plano ou
+gerar uma notificação push caso uma solicitação de corrida chegue e o app não esteja em primeiro plano ou
 esteja efetivamente fechado".
 
 ## Clarificações
@@ -18,7 +18,7 @@ esteja efetivamente fechado".
 
 Hoje a conexão com os relays vive dentro do app. Com o app em segundo plano ou fechado o Android suspende ou
 encerra o processo, o WebSocket morre e a solicitação de corrida (`kind: 20001`, evento efêmero — o relay não o
-guarda) se perde para sempre: o motorista que está "online" deixa de receber corridas sem saber. Um app de caronas
+guarda) se perde para sempre: o motorista que está "online" deixa de receber corridas sem saber. Um app de corridas
 só é usável se o motorista puder deixar o celular no bolso e ser avisado. O desenho do protótipo não tem backend
 nem serviço de push de terceiros (Princípio IV/V, tese do TCC), logo o aviso tem de ser gerado no próprio aparelho.
 

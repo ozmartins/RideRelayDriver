@@ -40,7 +40,7 @@ a tarefa some, o PID e o serviço continuam). **Nada abaixo foi medido em aparel
 
 | Cenário | Resultado |
 |---|---|
-| 2 — online, app removido dos recentes, solicitação `pix` | Notificação em canal `ride_requests` (`importance=4`), título "Nova solicitação de corrida", texto "Toque para ver", sem endereço nem coordenada. `when` ≈ 0,7 s depois da publicação (1 amostra). Tocar abre o app **online** (retomada) e a modal "Solicitação de carona" aparece. |
+| 2 — online, app removido dos recentes, solicitação `pix` | Notificação em canal `ride_requests` (`importance=4`), título "Nova solicitação de corrida", texto "Toque para ver", sem endereço nem coordenada. `when` ≈ 0,7 s depois da publicação (1 amostra). Tocar abre o app **online** (retomada) e a modal "Solicitação de corrida" aparece. |
 | 3 — app em primeiro plano | Só a modal; 0 notificações. |
 | 4 — recusas | Pagamento não aceito (`cartao`, cadastro com dinheiro e PIX): 0 notificações. Offline com o app fechado: 0 notificações. *Em corrida: não testado em aparelho (coberto por teste automatizado).* |
 | 5 — offline e sair do app | Serviço encerra (0 `isForeground=true`) e a notificação fixa some; voltar à tela religa o serviço e a tela Mais mostra os relays. |
@@ -85,4 +85,4 @@ O `logcat` do app aberto não foi inspecionado nesta rodada.
 **SC-006 — bateria por hora online com a tela apagada: NÃO MEDIDO.** O modelo de bateria do emulador não representa o
 consumo de um aparelho; um número daqui seria estimativa apresentada como medição (Princípio V). Método a aplicar em
 aparelho real: `adb shell dumpsys batterystats --reset`, 1 h online com tela apagada e a conexão ativa, depois
-`dumpsys batterystats` e a parcela do pacote `br.ufsc.tcc.caronas.driver`; repetir offline para comparar.
+`dumpsys batterystats` e a parcela do pacote `br.ufsc.tcc.corridas.driver`; repetir offline para comparar.

@@ -72,7 +72,7 @@ Acrescentado ao JSON de `content` do `20001` (passageiro, **em claro**) e do `20
 
 - `corridas` = nº de recibos guardados; `avaliacoes` = nº com `nota`; `media` = média das notas (omitir se `avaliacoes = 0`). **Declarados**; só os `recibos` são verificáveis.
 - `seq_proximo` = próximo `seq` a ser usado; `head` = `id_recibo` do recibo `seq_proximo−1` (omitido se `seq_proximo = 0`).
-- `recibos` = os **N mais recentes** por `seq` (N = 5, constante `kReputacaoJanela`), do mais novo para o mais antigo.
+- `recibos` = os **N mais recentes** por `seq` (N = 5, constante `kReputacaoJanela`), do mais novo para o mais antigo. Uma lista com **mais de N** recibos torna a `reputacao` **malformada** (emenda 26): é tratada como ausente, sem verificar nenhum recibo dela.
 - Limite de tamanho do `content`: continua 65 535 bytes (NIP-44).
 
 ### 1.6 Verificação ao receber uma `reputacao` (função pura, testável)
@@ -92,13 +92,16 @@ Resultado exibido: **"verificado nos últimos N"** (média e contagem calculadas
 
 ### 1.8 Recepção do recibo (avaliado)
 
-Depois das regras 1, 2, 6 e 7 de recepção: validar (1.6 a–d, g) com `pubkey_avaliado == minha chave` e `pubkey_avaliador == autor do evento`; `guid_corrida` == tag `e`; não existir recibo salvo para o mesmo `guid_corrida` (se existir e for idêntico, apenas reenviar `20015`; se diferente, ignorar). Gravar em `recibos_recebidos` (imutável) e publicar `20015`. Recalcular `corridas`, `avaliacoes`, `media`, `seq_proximo = max(seq)+1`, `head` = `id_recibo` do maior `seq`.
+Depois das regras 1, 2, 6 e 7 de recepção: validar (1.6 a–d, g) com `pubkey_avaliado == minha chave` e `pubkey_avaliador == autor do evento`; `guid_corrida` == tag `e`; **o `guid_corrida` ser de uma corrida conhecida do avaliado com o avaliador** (abaixo, emenda 26); não existir recibo salvo para o mesmo `guid_corrida` (se existir e for idêntico, apenas reenviar `20015`; se diferente, ignorar). Gravar em `recibos_recebidos` (imutável) e publicar `20015`. Recalcular `corridas`, `avaliacoes`, `media`, `seq_proximo = max(seq)+1`, `head` = `id_recibo` do maior `seq`.
+
+**Corrida conhecida (emenda 26).** O `guid_corrida` é o `id` de um `20002`, publicado por um motorista e endereçado a um passageiro. Quem recebe o recibo só o grava se **já conhecia, por conta própria, essa negociação com o avaliador**: o motorista, por ter enviado esse orçamento àquele passageiro (o avaliador); o passageiro, por tê-lo recebido daquele motorista (o avaliador). Recibo cujo `guid_corrida` o receptor não conhece, ou que o liga a outra contraparte, é descartado sem erro e sem `20015`. Sem backend, o receptor não tem como saber se a corrida foi aceita ou concluída, então a regra só barra quem **nunca negociou** com ele. O receptor MUST guardar, junto da negociação, a chave da contraparte, e a consulta MUST usar só esse registro local, nunca dados do próprio recibo.
 
 ### 1.9 Limites conhecidos (documentar no contrato, não esconder)
 
 - O avaliado controla o que apresenta: pode omitir recibos ruins **recentes** se criar uma cadeia sem eles; a cadeia + `head` conferido pelo avaliador só **reduz** isso, não elimina.
 - Quem recria a identidade (nova chave) zera o histórico (Sybil). Perder o app/chave perde a reputação.
 - `corridas/avaliacoes/media` declarados não são verificáveis além da janela de N.
+- Quem **negociou** com o avaliado (recebeu ou enviou o orçamento) pode lhe emitir um recibo válido para uma corrida que não aconteceu: o avaliado não tem como saber se houve aceitação, e a emenda 26 só barra quem nunca negociou com ele. Antes da emenda 26, qualquer pessoa que conhecesse a chave pública do avaliado podia lhe enviar recibos com corridas inventadas (medido em emulador: um recibo de nota 1 de um estranho foi aceito e baixou a média declarada).
 - O `20001` é público: os recibos nele expõem as chaves públicas das contrapartes. Aceito no protótipo; alternativa futura: enviar só o resumo no `20001` e os recibos após o orçamento.
 
 ---
@@ -119,6 +122,8 @@ Depois das regras 1, 2, 6 e 7 de recepção: validar (1.6 a–d, g) com `pubkey_
 6. **Regra de recepção 7**: "kinds `20002`–`20015`".
 7. **Forma da inscrição**: o motorista passa a incluir `20014` e `20015` (e o passageiro, idem).
 8. **Limites conhecidos (1.9)**: copiados como estão — não se escondem.
+
+9. **Emenda 26** (mesma alteração das seções acima, em data posterior): linha 26 no histórico; 1.5 (mais de N recibos = reputação malformada), 1.8 (corrida conhecida do receptor com o avaliador) e 1.9 (limite correspondente), como aparecem na seção *Reputação por recibos* acima.
 
 ## Vetor de teste compartilhado
 

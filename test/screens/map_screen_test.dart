@@ -40,6 +40,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../support/signed_payload.dart';
 import '../support/fake_background_service.dart';
 import '../support/fake_cadastro_store.dart';
 import '../support/in_memory_receipt_store.dart';
@@ -295,7 +296,7 @@ Map<String, dynamic> solicitacaoAssinada({
             'reputacao': reputacao,
           }),
     keyPairs: keys,
-    tags: [prototypeMarkerTag],
+    tags: tagsDeSolicitacao(lat: originLat, lon: originLon),
   );
   return {
     'id': event.id,

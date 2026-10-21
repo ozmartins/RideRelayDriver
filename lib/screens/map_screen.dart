@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../domain/active_ride.dart';
 import '../domain/availability_status.dart';
+import '../domain/driver_coverage.dart';
 import '../domain/driver_position.dart';
 import '../domain/driver_profile.dart';
 import '../domain/driver_ride_status.dart';
@@ -276,7 +277,16 @@ class _MapScreenState extends State<MapScreen> {
   /// incerto — a reentrega do serviço chega antes de a posição e do cadastro
   /// estarem prontos (FR-007 da feature 025). Abrem a modal assim que a
   /// retomada termina com o motorista online; se ela termina offline, somem.
-  final List<_PendingRideRequest> _estacionadas = [];
+  ///
+  /// Guarda o evento bruto, não o pedido decodificado: a cobertura geográfica
+  /// (feature 027) só existe depois da primeira posição, e a regra é reavaliada
+  /// contra ela ao liberar.
+  final List<NostrEvent> _estacionadas = [];
+
+  /// A cobertura do motorista online (feature 027): a posição em que ele
+  /// ficou online e o raio daquele momento. Só em memória; `null` offline e,
+  /// na retomada, até a primeira posição válida.
+  DriverCoverage? _cobertura;
 
   /// Quanto esperar por uma posição válida para retomar o estado online.
   static const _esperaRetomada = Duration(seconds: 20);
@@ -325,6 +335,7 @@ class _MapScreenState extends State<MapScreen> {
         }
         if (_posicao != null) {
           setState(() => _status = AvailabilityStatus.online);
+          _garantirCobertura();
           _liberarEstacionadas();
           return;
         }
@@ -350,11 +361,43 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
     if (_posicao == null || _perfil == null) return;
+    _garantirCobertura();
     final itens = List.of(_estacionadas);
     _estacionadas.clear();
-    for (final item in itens) {
-      _enfileirarOuAbrir(item);
+    // Reavalia contra a cobertura de agora: o que chegou antes da primeira
+    // posição não tinha referência para ser medido.
+    for (final evento in itens) {
+      final decisao = RideRequestFilter.evaluate(
+        evento,
+        _estadoDoServico,
+        coverage: _cobertura,
+      );
+      if (decisao.accepted) {
+        _enfileirarOuAbrir(_PendingRideRequest(decisao.request!));
+      }
     }
+  }
+
+  /// Define a cobertura em uso (ou a descarta, com `null`).
+  void _definirCobertura(DriverCoverage? cobertura) {
+    _cobertura = cobertura;
+  }
+
+  /// Cria a cobertura se o motorista está online sem ela e há posição e
+  /// cadastro — o caso da retomada (FR-012 da feature 025), em que ficar online
+  /// não foi um toque. Nunca refaz uma cobertura existente: a referência é
+  /// fixa até ficar offline.
+  void _garantirCobertura() {
+    if (_status != AvailabilityStatus.online || _cobertura != null) return;
+    final posicao = _posicao, perfil = _perfil;
+    if (posicao == null || perfil == null) return;
+    _definirCobertura(
+      DriverCoverage.around(
+        lat: posicao.latitude,
+        lon: posicao.longitude,
+        radiusKm: perfil.raioAtendimentoKm,
+      ),
+    );
   }
 
   Future<void> _reconectarRelays() async {
@@ -371,6 +414,7 @@ class _MapScreenState extends State<MapScreen> {
     final perfil = await widget.cadastroStore.load();
     if (!mounted || perfil == null) return;
     setState(() => _perfil = perfil);
+    _garantirCobertura();
     _liberarEstacionadas();
   }
 
@@ -671,14 +715,18 @@ class _MapScreenState extends State<MapScreen> {
     final decisao = RideRequestFilter.evaluate(
       evento,
       _estadoDoServico.copyWith(online: retomando ? true : null),
+      coverage: _cobertura,
     );
-    if (!decisao.accepted) return;
-    final item = _PendingRideRequest(decisao.request!);
-    if (retomando) {
-      _estacionadas.add(item);
+    if (retomando &&
+        (decisao.accepted ||
+            decisao.refusal == RideRequestRefusal.semReferencia)) {
+      // Sem referência ainda: guarda o evento para medi-lo quando a retomada
+      // terminar.
+      _estacionadas.add(evento);
       return;
     }
-    _enfileirarOuAbrir(item);
+    if (!decisao.accepted) return;
+    _enfileirarOuAbrir(_PendingRideRequest(decisao.request!));
   }
 
   /// O que o filtro de solicitações precisa do estado desta tela.
@@ -991,6 +1039,7 @@ class _MapScreenState extends State<MapScreen> {
           _posicao = null;
           _retomandoOnline = false;
           _estacionadas.clear();
+          _definirCobertura(null);
           if (_status == AvailabilityStatus.online) {
             // FR-009: perder a localização estando online força offline
             // automaticamente, com explicação distinta de uma recusa comum.
@@ -1019,16 +1068,27 @@ class _MapScreenState extends State<MapScreen> {
         );
         return;
       }
+      final posicao = _posicao!;
       setState(() {
         _status = AvailabilityStatus.online;
         _avisoStatus = null;
       });
+      // A posição do momento é a referência fixa do raio até ficar offline
+      // (feature 027): nada a atualiza enquanto o motorista se desloca.
+      _definirCobertura(
+        DriverCoverage.around(
+          lat: posicao.latitude,
+          lon: posicao.longitude,
+          radiusKm: _perfil?.raioAtendimentoKm ?? kRaioPadraoKm,
+        ),
+      );
       unawaited(_garantirPermissaoDeNotificacao());
     } else {
       setState(() {
         _status = AvailabilityStatus.offline;
         _avisoStatus = null;
       });
+      _definirCobertura(null);
     }
   }
 
@@ -1058,6 +1118,7 @@ class _MapScreenState extends State<MapScreen> {
         _status = AvailabilityStatus.online;
       }
     });
+    _garantirCobertura();
     _liberarEstacionadas();
     final ponto = LatLng(posicao.latitude, posicao.longitude);
     if (_seguindoMotorista && !_mapController.camera.zoom.isNaN) {

@@ -3,6 +3,17 @@ import '../domain/reputation.dart';
 import '../domain/reputation_view.dart';
 import 'receipt_signature.dart';
 
+/// As regras por recibo da 1.6 que não dependem da lista: (a) `id_recibo`
+/// confere, (b) assinatura do avaliador, (c) avaliado é [avaliado], (d) `v == 1`
+/// e nota em 1..5 se presente, (g) avaliador diferente do avaliado. Usada
+/// também ao **receber** um recibo (1.8), com [avaliado] = a própria chave.
+bool isReceiptValidFor(Receipt r, {required String avaliado}) =>
+    ReceiptSignature.verify(r) && // (a) e (b)
+    r.pubkeyAvaliado == avaliado && // (c)
+    r.v == 1 &&
+    (r.nota == null || (r.nota! >= 1 && r.nota! <= 5)) && // (d)
+    r.pubkeyAvaliador != r.pubkeyAvaliado; // (g)
+
 /// Verifica a [Reputation] recebida (regra 1.6 do contrato, emenda 25).
 ///
 /// Função pura: sem I/O, sem relógio. Serve à exibição da reputação do
@@ -25,13 +36,9 @@ ReputationView verifyReputation(
 
   for (final r in reputation.recibos) {
     final ok =
-        ReceiptSignature.verify(r) && // (a) e (b)
-        r.pubkeyAvaliado == authorPubkey && // (c)
-        r.v == 1 &&
-        (r.nota == null || (r.nota! >= 1 && r.nota! <= 5)) && // (d)
+        isReceiptValidFor(r, avaliado: authorPubkey) && // (a)–(d), (g)
         (lastSeq == null || r.seq < lastSeq) && // (e)
-        !seenGuids.contains(r.guidCorrida) && // (f)
-        r.pubkeyAvaliador != r.pubkeyAvaliado; // (g)
+        !seenGuids.contains(r.guidCorrida); // (f)
     if (!ok) {
       discarded++;
       continue;

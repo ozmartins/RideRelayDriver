@@ -50,8 +50,8 @@ da constituição e o do contrato vêm **antes** de qualquer código (Princípio
 **Meta**: a reputação do passageiro daquela corrida fica gravada no envio do orçamento.
 **Teste independente**: enviar orçamento a uma solicitação com reputação e recuperar `declaredFor(quoteId)` após reinício.
 
-- [ ] T021 [US4] Teste em `test/screens/` (teste do envio de orçamento existente, ampliado): após o relay aceitar, `receiptStore.saveDeclared(signed.event.id, passengerPubkey, reputação do passageiro)` é chamado; sem reputação, grava `Reputation.empty()` (R4); nenhum registro se nenhum relay aceitar.
-- [ ] T022 [US4] Em `lib/screens/map_screen.dart` (`_enviarOrcamento`): ler `receiptStore.myReputation()` (nula se `corridas == 0`) e passá-la a `signRideQuote`; depois da publicação aceita e de `sentQuotesStore.add`, chamar `saveDeclared`. Falha de gravação não impede o envio. (depende de T013, T015, T018, T021)
+- [x] T021 [US4] Teste em `test/screens/` (teste do envio de orçamento existente, ampliado): após o relay aceitar, `receiptStore.saveDeclared(signed.event.id, passengerPubkey, reputação do passageiro)` é chamado; sem reputação, grava `Reputation.empty()` (R4); nenhum registro se nenhum relay aceitar.
+- [x] T022 [US4] Em `lib/screens/map_screen.dart` (`_enviarOrcamento`): ler `receiptStore.myReputation()` (nula se `corridas == 0`) e passá-la a `signRideQuote`; depois da publicação aceita e de `sentQuotesStore.add`, chamar `saveDeclared`. Falha de gravação não impede o envio. (depende de T013, T015, T018, T021)
 
 ## Fase 5: História 3 — Receber recibos e declarar a própria reputação (P1)
 

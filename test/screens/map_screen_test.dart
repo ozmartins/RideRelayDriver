@@ -10,6 +10,7 @@ import 'package:driver/domain/identity.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/payment_method.dart';
 import 'package:driver/domain/relay.dart';
+import 'package:driver/domain/reputation.dart';
 import 'package:driver/domain/ride_rating.dart';
 import 'package:driver/screens/identidade_visual.dart';
 import 'package:driver/screens/map_screen.dart';
@@ -39,6 +40,8 @@ import 'package:latlong2/latlong.dart';
 
 import '../support/fake_background_service.dart';
 import '../support/fake_cadastro_store.dart';
+import '../support/in_memory_receipt_store.dart';
+import '../support/receipt_fixtures.dart';
 import '../support/fake_message_channel.dart';
 import '../support/fake_route_distance_service.dart';
 
@@ -257,14 +260,24 @@ Map<String, dynamic> solicitacaoAssinada({
   double destLat = -28.6721,
   double destLon = -49.3671,
   String payment = 'pix',
+  Identity? autor,
+  Object? reputacao,
 }) {
-  final keys = nostr.Nostr.instance.services.keys.generateKeyPair();
+  final keys = autor == null
+      ? nostr.Nostr.instance.services.keys.generateKeyPair()
+      : nostr.NostrKeyPairs(private: autor.privateKey);
   final event = nostr.NostrEvent.fromPartialData(
     kind: NostrEvent.kindRideRequest,
-    content:
-        '{"origin":{"lat":$originLat,"lon":$originLon},'
-        '"destination":{"lat":$destLat,"lon":$destLon},'
-        '"payment":"$payment"}',
+    content: reputacao == null
+        ? '{"origin":{"lat":$originLat,"lon":$originLon},'
+              '"destination":{"lat":$destLat,"lon":$destLon},'
+              '"payment":"$payment"}'
+        : jsonEncode({
+            'origin': {'lat': originLat, 'lon': originLon},
+            'destination': {'lat': destLat, 'lon': destLon},
+            'payment': payment,
+            'reputacao': reputacao,
+          }),
     keyPairs: keys,
     tags: [prototypeMarkerTag],
   );
@@ -416,6 +429,7 @@ void main() {
       InMemoryRideStateStore rideStateStore,
       InMemorySentQuotesStore sentQuotesStore,
       InMemoryRideRatingStore rideRatingStore,
+      InMemoryReceiptStore receiptStore,
     })
   >
   montar(
@@ -427,6 +441,7 @@ void main() {
     InMemoryRideStateStore? rideStateStore,
     InMemorySentQuotesStore? sentQuotesStore,
     InMemoryRideRatingStore? rideRatingStore,
+    InMemoryReceiptStore? receiptStore,
     ValueListenable<DriverProfile?>? perfilAoVivo,
     ServiceController? serviceController,
   }) async {
@@ -446,6 +461,7 @@ void main() {
     final rideState = rideStateStore ?? InMemoryRideStateStore();
     final sentQuotes = sentQuotesStore ?? InMemorySentQuotesStore();
     final rideRatings = rideRatingStore ?? InMemoryRideRatingStore();
+    final receipts = receiptStore ?? InMemoryReceiptStore();
 
     Widget mapa(DriverProfile? perfil) => MapScreen(
       driverProfile: perfil,
@@ -461,6 +477,7 @@ void main() {
       rideStateStore: rideState,
       sentQuotesStore: sentQuotes,
       rideRatingStore: rideRatings,
+      receiptStore: receipts,
     );
 
     await tester.pumpWidget(
@@ -481,6 +498,7 @@ void main() {
       rideStateStore: rideState,
       sentQuotesStore: sentQuotes,
       rideRatingStore: rideRatings,
+      receiptStore: receipts,
     );
   }
 
@@ -2689,6 +2707,168 @@ void main() {
         expect(find.text('Solicitação de corrida'), findsOneWidget);
       },
     );
+  });
+
+  group('MapScreen — reputação no orçamento (feature 026, US4)', () {
+    /// Motorista online, com uma solicitação de [autor] aberta e o orçamento
+    /// enviado pelo botão da modal.
+    Future<
+      ({FakeGateway gateway, InMemoryReceiptStore receiptStore, String quoteId})
+    >
+    enviarOrcamento(
+      WidgetTester tester, {
+      Identity? autor,
+      Object? reputacao,
+      InMemoryReceiptStore? receiptStore,
+      bool relayAceita = true,
+    }) async {
+      final service = FakeLocationService();
+      final ambiente = await montar(
+        tester,
+        locationService: service,
+        receiptStore: receiptStore,
+        routeDistanceService: FakeRouteDistanceService(
+          resultados: [1000, 10000],
+        ),
+      );
+      ambiente.gateway.aceitarPublicacoes = relayAceita;
+      service.emitir(posicaoDeTeste());
+      await tester.pump();
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: solicitacaoAssinada(autor: autor, reputacao: reputacao),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Enviar orçamento'));
+      await tester.pumpAndSettle();
+
+      return (
+        gateway: ambiente.gateway,
+        receiptStore: ambiente.receiptStore,
+        quoteId: ambiente.gateway.publicados.isEmpty
+            ? ''
+            : ambiente.gateway.publicados.single.id,
+      );
+    }
+
+    Map<String, dynamic> conteudoDoOrcamento(NostrEvent publicado) =>
+        jsonDecode(
+          MessageCipher().decryptFrom(
+            passageiroDeTeste,
+            motoristaDeTeste.publicKey,
+            publicado.content,
+          )!,
+        ) as Map<String, dynamic>;
+
+    Reputation reputacaoDe(Identity dono) {
+      final cadeia = signedChain(avaliado: dono.publicKey, notas: [5, 3]);
+      return Reputation(
+        corridas: 2,
+        avaliacoes: 2,
+        media: 4.0,
+        seqProximo: 2,
+        head: cadeia.last.idRecibo,
+        recibos: cadeia.reversed.toList(),
+      );
+    }
+
+    testWidgets('guarda a reputação que o passageiro declarou, ligada ao id do '
+        'orçamento', (tester) async {
+      final rep = reputacaoDe(passageiroDeTeste);
+      final r = await enviarOrcamento(
+        tester,
+        autor: passageiroDeTeste,
+        reputacao: rep.toJson(),
+      );
+
+      expect(r.quoteId, isNotEmpty);
+      expect(await r.receiptStore.declaredFor(r.quoteId), rep);
+    });
+
+    testWidgets('passageiro sem reputação: grava uma reputação vazia (R4)', (
+      tester,
+    ) async {
+      final r = await enviarOrcamento(tester, autor: passageiroDeTeste);
+
+      expect(
+        await r.receiptStore.declaredFor(r.quoteId),
+        const Reputation.empty(),
+      );
+    });
+
+    testWidgets('reputação malformada do passageiro: orçamento sai e fica '
+        'registrada como vazia', (tester) async {
+      final r = await enviarOrcamento(
+        tester,
+        autor: passageiroDeTeste,
+        reputacao: 'lixo',
+      );
+
+      expect(r.quoteId, isNotEmpty);
+      expect(
+        await r.receiptStore.declaredFor(r.quoteId),
+        const Reputation.empty(),
+      );
+    });
+
+    testWidgets('o orçamento leva a reputação própria calculada dos recibos '
+        'recebidos', (tester) async {
+      final loja = InMemoryReceiptStore();
+      for (final r in signedChain(
+        avaliado: motoristaDeTeste.publicKey,
+        notas: [5, 4],
+      )) {
+        await loja.saveReceived(r);
+      }
+      final r = await enviarOrcamento(
+        tester,
+        autor: passageiroDeTeste,
+        receiptStore: loja,
+      );
+
+      final conteudo = conteudoDoOrcamento(r.gateway.publicados.single);
+      expect(
+        Reputation.fromJson(conteudo['reputacao']),
+        await loja.myReputation(),
+      );
+      expect((conteudo['reputacao'] as Map)['seq_proximo'], 2);
+    });
+
+    testWidgets('motorista sem recibos: o orçamento omite a chave reputacao', (
+      tester,
+    ) async {
+      final r = await enviarOrcamento(tester, autor: passageiroDeTeste);
+
+      expect(
+        conteudoDoOrcamento(r.gateway.publicados.single)
+            .containsKey('reputacao'),
+        isFalse,
+      );
+    });
+
+    testWidgets('nenhum relay aceitou o orçamento: nada é registrado', (
+      tester,
+    ) async {
+      final rep = reputacaoDe(passageiroDeTeste);
+      final r = await enviarOrcamento(
+        tester,
+        autor: passageiroDeTeste,
+        reputacao: rep.toJson(),
+        relayAceita: false,
+      );
+
+      expect(r.gateway.publicados, hasLength(1));
+      expect(
+        await r.receiptStore.declaredFor(r.gateway.publicados.single.id),
+        isNull,
+      );
+    });
   });
 
   group('MapScreen — avaliar corrida (US1 da feature 013)', () {

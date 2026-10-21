@@ -9,6 +9,7 @@ import 'package:driver/domain/driver_ride_status.dart';
 import 'package:driver/domain/identity.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/payment_method.dart';
+import 'package:driver/domain/receipt.dart';
 import 'package:driver/domain/relay.dart';
 import 'package:driver/domain/reputation.dart';
 import 'package:driver/domain/ride_rating.dart';
@@ -25,6 +26,7 @@ import 'package:driver/services/key_store.dart';
 import 'package:driver/services/location_service.dart';
 import 'package:driver/services/prototype_marker.dart';
 import 'package:driver/services/cadastro_store.dart';
+import 'package:driver/services/receipt_service.dart';
 import 'package:driver/services/relay_gateway.dart';
 import 'package:driver/services/relay_service.dart';
 import 'package:driver/services/ride_rating_store.dart';
@@ -381,6 +383,74 @@ Map<String, dynamic> confirmacaoAssinada({
   };
 }
 
+/// Monta um payload de `kind: 20014` (emenda 25) como o passageiro o publicaria:
+/// o recibo completo cifrado ao motorista (ou em claro, com [emClaro]), tags
+/// `["e", guid]` e `["p", motorista]`.
+Map<String, dynamic> reciboAssinado({
+  required Receipt recibo,
+  Identity? autor,
+  bool emClaro = false,
+}) {
+  final quem = autor ?? passageiroDeTeste;
+  final keys = nostr.NostrKeyPairs(private: quem.privateKey);
+  final texto = jsonEncode(recibo.toJson());
+  final event = nostr.NostrEvent.fromPartialData(
+    kind: NostrEvent.kindReceipt,
+    content: emClaro
+        ? texto
+        : _cifrarComoPassageiro(keys, motoristaDeTeste.publicKey, texto),
+    keyPairs: keys,
+    tags: [
+      prototypeMarkerTag,
+      ['e', recibo.guidCorrida],
+      ['p', motoristaDeTeste.publicKey],
+    ],
+  );
+  return {
+    'id': event.id,
+    'pubkey': event.pubkey,
+    'created_at': event.createdAt!.millisecondsSinceEpoch ~/ 1000,
+    'kind': event.kind,
+    'tags': event.tags,
+    'content': event.content,
+    'sig': event.sig,
+  };
+}
+
+/// Idem para `kind: 20015`: `{"id_recibo": …}` do avaliado ao avaliador (o
+/// motorista), assinado por [autor] (o passageiro por padrão).
+Map<String, dynamic> confirmacaoDeReciboAssinada({
+  required String guid,
+  required String idRecibo,
+  Identity? autor,
+}) {
+  final quem = autor ?? passageiroDeTeste;
+  final keys = nostr.NostrKeyPairs(private: quem.privateKey);
+  final event = nostr.NostrEvent.fromPartialData(
+    kind: NostrEvent.kindReceiptAck,
+    content: _cifrarComoPassageiro(
+      keys,
+      motoristaDeTeste.publicKey,
+      jsonEncode({'id_recibo': idRecibo}),
+    ),
+    keyPairs: keys,
+    tags: [
+      prototypeMarkerTag,
+      ['e', guid],
+      ['p', motoristaDeTeste.publicKey],
+    ],
+  );
+  return {
+    'id': event.id,
+    'pubkey': event.pubkey,
+    'created_at': event.createdAt!.millisecondsSinceEpoch ~/ 1000,
+    'kind': event.kind,
+    'tags': event.tags,
+    'content': event.content,
+    'sig': event.sig,
+  };
+}
+
 /// Monta um payload já assinado de `kind: 20013` (emenda 19), como o passageiro
 /// o publicaria: tags `["e", quoteId]` e `["p", motorista]`, `content` cifrado
 /// ao motorista com o texto `{}`. [autor] é quem assina (o passageiro da
@@ -456,12 +526,26 @@ void main() {
         NostrEvent.kindMeetingConfirmed,
         NostrEvent.kindDestinationConfirmed,
         NostrEvent.kindRideCancelledByPassenger,
+        NostrEvent.kindReceipt,
+        NostrEvent.kindReceiptAck,
       },
     );
     final rideState = rideStateStore ?? InMemoryRideStateStore();
     final sentQuotes = sentQuotesStore ?? InMemorySentQuotesStore();
     final rideRatings = rideRatingStore ?? InMemoryRideRatingStore();
     final receipts = receiptStore ?? InMemoryReceiptStore();
+    final identityService = IdentityService(_MemoryKeyStore());
+    final receiptService = ReceiptService(
+      store: receipts,
+      identityService: identityService,
+      identity: () => identity ?? motoristaDeTeste,
+      publish: (signed) async {
+        final resultados = await relayService
+            .publish(signed.event, payload: signed.payload)
+            .toList();
+        return resultados.any((r) => r.accepted);
+      },
+    );
 
     Widget mapa(DriverProfile? perfil) => MapScreen(
       driverProfile: perfil,
@@ -471,13 +555,14 @@ void main() {
       routeDistanceService: routeDistanceService ?? FakeRouteDistanceService(),
       reverseGeocodingService: FakeReverseGeocodingService(),
       identity: identity ?? motoristaDeTeste,
-      identityService: IdentityService(_MemoryKeyStore()),
+      identityService: identityService,
       relayService: relayService,
       serviceController: serviceController,
       rideStateStore: rideState,
       sentQuotesStore: sentQuotes,
       rideRatingStore: rideRatings,
       receiptStore: receipts,
+      receiptService: receiptService,
     );
 
     await tester.pumpWidget(
@@ -2868,6 +2953,131 @@ void main() {
         await r.receiptStore.declaredFor(r.gateway.publicados.single.id),
         isNull,
       );
+    });
+  });
+
+  group('MapScreen — recibos recebidos do passageiro (feature 026, US3)', () {
+    Receipt reciboDoPassageiro({int? nota = 5, int seq = 0, int guid = 1}) =>
+        signedReceipt(
+          avaliador: passageiroDeTeste,
+          avaliado: motoristaDeTeste.publicKey,
+          seq: seq,
+          nota: nota,
+          guid: fakeGuid(guid),
+        );
+
+    Receipt reciboEmitido() => signedReceipt(
+      avaliador: motoristaDeTeste,
+      avaliado: passageiroDeTeste.publicKey,
+      seq: 0,
+      guid: fakeGuid(9),
+    );
+
+    testWidgets('20014 válido é gravado e confirmado com um 20015', (
+      tester,
+    ) async {
+      final ambiente = await montar(tester);
+      final r = reciboDoPassageiro();
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: reciboAssinado(recibo: r),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(await ambiente.receiptStore.receivedFor(r.guidCorrida), r);
+      expect((await ambiente.receiptStore.myReputation()).corridas, 1);
+      expect(ambiente.gateway.publicados, hasLength(1));
+      expect(
+        ambiente.gateway.publicados.single.kind,
+        NostrEvent.kindReceiptAck,
+      );
+    });
+
+    testWidgets('20014 em claro é descartado, sem efeito nem confirmação', (
+      tester,
+    ) async {
+      final ambiente = await montar(tester);
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: reciboAssinado(recibo: reciboDoPassageiro(), emClaro: true),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect((await ambiente.receiptStore.myReputation()).corridas, 0);
+      expect(ambiente.gateway.publicados, isEmpty);
+    });
+
+    testWidgets('o mesmo 20014 entregue por dois relays tem um único efeito', (
+      tester,
+    ) async {
+      final ambiente = await montar(tester);
+      final payload = reciboAssinado(recibo: reciboDoPassageiro());
+
+      for (final relay in ['wss://a.test', 'wss://b.test']) {
+        ambiente.gateway.emitir(
+          IncomingEvent(relayUrl: relay, payload: payload),
+        );
+        await tester.pump();
+      }
+      await tester.pump();
+
+      expect((await ambiente.receiptStore.myReputation()).corridas, 1);
+      expect(ambiente.gateway.publicados, hasLength(1));
+    });
+
+    testWidgets('20015 do avaliado confirma o recibo emitido pendente', (
+      tester,
+    ) async {
+      final loja = InMemoryReceiptStore();
+      final emitido = reciboEmitido();
+      await loja.saveIssued(emitido);
+      final ambiente = await montar(tester, receiptStore: loja);
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: confirmacaoDeReciboAssinada(
+            guid: emitido.guidCorrida,
+            idRecibo: emitido.idRecibo,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(await loja.pendingIssued(), isEmpty);
+    });
+
+    testWidgets('20015 de quem não é o avaliado não confirma nada', (
+      tester,
+    ) async {
+      final loja = InMemoryReceiptStore();
+      final emitido = reciboEmitido();
+      await loja.saveIssued(emitido);
+      final ambiente = await montar(tester, receiptStore: loja);
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: confirmacaoDeReciboAssinada(
+            guid: emitido.guidCorrida,
+            idRecibo: emitido.idRecibo,
+            autor: identidadeDeTeste(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(await loja.pendingIssued(), [emitido]);
     });
   });
 

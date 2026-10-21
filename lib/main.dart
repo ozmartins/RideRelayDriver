@@ -28,6 +28,7 @@ import 'services/relay_repository.dart';
 import 'services/relay_connection.dart';
 import 'services/relay_service.dart';
 import 'services/remote_relay_connection.dart';
+import 'services/receipt_service.dart';
 import 'services/receipt_store.dart';
 import 'services/ride_rating_store.dart';
 import 'services/ride_state_store.dart';
@@ -165,6 +166,17 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   final RideRatingStore _rideRatingStore = SqfliteRideRatingStore();
   late final ReceiptStore _receiptStore =
       widget.receiptStore ?? SqfliteReceiptStore();
+  late final ReceiptService _receiptService = ReceiptService(
+    store: _receiptStore,
+    identityService: _identityService,
+    identity: () => _identity,
+    publish: (signed) async {
+      final resultados = await _relayService
+          .publish(signed.event, payload: signed.payload)
+          .toList();
+      return resultados.any((r) => r.accepted);
+    },
+  );
 
   Identity? _identity;
   String? _startupError;
@@ -387,6 +399,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
               sentQuotesStore: _sentQuotesStore,
               rideRatingStore: _rideRatingStore,
               receiptStore: _receiptStore,
+              receiptService: _receiptService,
             ),
     );
   }
@@ -428,6 +441,7 @@ class _Shell extends StatefulWidget {
     required this.sentQuotesStore,
     required this.rideRatingStore,
     required this.receiptStore,
+    required this.receiptService,
   });
 
   final Identity? identity;
@@ -443,6 +457,7 @@ class _Shell extends StatefulWidget {
   final SentQuotesStore sentQuotesStore;
   final RideRatingStore rideRatingStore;
   final ReceiptStore receiptStore;
+  final ReceiptService receiptService;
 
   /// Sempre não nulo aqui: o `_Shell` só é exibido depois que FR-001 decidiu
   /// que o cadastro existe. Mesmo assim é passado, e não lido de um estado
@@ -483,6 +498,7 @@ class _ShellState extends State<_Shell> {
         sentQuotesStore: widget.sentQuotesStore,
         rideRatingStore: widget.rideRatingStore,
         receiptStore: widget.receiptStore,
+        receiptService: widget.receiptService,
         driverProfile: widget.driverProfile,
       ),
       MoreScreen(

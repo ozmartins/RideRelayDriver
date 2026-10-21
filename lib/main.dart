@@ -28,6 +28,7 @@ import 'services/relay_repository.dart';
 import 'services/relay_connection.dart';
 import 'services/relay_service.dart';
 import 'services/remote_relay_connection.dart';
+import 'services/receipt_store.dart';
 import 'services/ride_rating_store.dart';
 import 'services/ride_state_store.dart';
 import 'services/reverse_geocoding_service.dart';
@@ -61,6 +62,7 @@ class CorridasDriverApp extends StatefulWidget {
     this.locationService,
     this.routeDistanceService,
     this.reverseGeocodingService,
+    this.receiptStore,
   });
 
   /// Dependências injetáveis. Em produção ficam nulas e as implementações
@@ -88,6 +90,9 @@ class CorridasDriverApp extends StatefulWidget {
   /// real (decisão D1 de `specs/007-receber-solicitacao-corrida/research.md`).
   final RouteDistanceService? routeDistanceService;
   final ReverseGeocodingService? reverseGeocodingService;
+
+  /// Idem, para os recibos de reputação (feature 026) — nenhum teste toca SQLite.
+  final ReceiptStore? receiptStore;
 
   @override
   State<CorridasDriverApp> createState() => _CorridasDriverAppState();
@@ -158,6 +163,8 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
     widget.keyValueStore ?? PreferencesStore(),
   );
   final RideRatingStore _rideRatingStore = SqfliteRideRatingStore();
+  late final ReceiptStore _receiptStore =
+      widget.receiptStore ?? SqfliteReceiptStore();
 
   Identity? _identity;
   String? _startupError;
@@ -379,6 +386,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
               rideStateStore: _rideStateStore,
               sentQuotesStore: _sentQuotesStore,
               rideRatingStore: _rideRatingStore,
+              receiptStore: _receiptStore,
             ),
     );
   }
@@ -419,6 +427,7 @@ class _Shell extends StatefulWidget {
     required this.rideStateStore,
     required this.sentQuotesStore,
     required this.rideRatingStore,
+    required this.receiptStore,
   });
 
   final Identity? identity;
@@ -433,6 +442,7 @@ class _Shell extends StatefulWidget {
   final RideStateStore rideStateStore;
   final SentQuotesStore sentQuotesStore;
   final RideRatingStore rideRatingStore;
+  final ReceiptStore receiptStore;
 
   /// Sempre não nulo aqui: o `_Shell` só é exibido depois que FR-001 decidiu
   /// que o cadastro existe. Mesmo assim é passado, e não lido de um estado
@@ -472,6 +482,7 @@ class _ShellState extends State<_Shell> {
         rideStateStore: widget.rideStateStore,
         sentQuotesStore: widget.sentQuotesStore,
         rideRatingStore: widget.rideRatingStore,
+        receiptStore: widget.receiptStore,
         driverProfile: widget.driverProfile,
       ),
       MoreScreen(

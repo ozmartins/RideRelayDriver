@@ -13,6 +13,7 @@ import '../domain/geo_distance.dart';
 import '../domain/identity.dart';
 import '../domain/nostr_event.dart';
 import '../domain/quote_accepted.dart';
+import '../domain/reputation.dart';
 import '../domain/ride_quote.dart';
 import '../domain/ride_leg.dart';
 import '../domain/ride_rating.dart';
@@ -26,6 +27,7 @@ import '../services/event_feed.dart';
 import '../services/identity_service.dart';
 import '../services/location_service.dart';
 import '../services/background/service_controller.dart';
+import '../services/receipt_store.dart';
 import '../services/relay_connection.dart';
 import '../services/ride_rating_store.dart';
 import '../services/ride_state_store.dart';
@@ -63,6 +65,7 @@ class MapScreen extends StatefulWidget {
     required this.rideRatingStore,
     this.driverProfile,
     this.serviceController,
+    this.receiptStore,
   });
 
   final LocationService locationService;
@@ -88,6 +91,12 @@ class MapScreen extends StatefulWidget {
 
   /// Persistência da avaliação da corrida (feature 013, FR-004/FR-005).
   final RideRatingStore rideRatingStore;
+
+  /// Recibos de reputação (feature 026): fonte da reputação própria declarada
+  /// no orçamento e guarda da reputação do passageiro em cada corrida. Nulo =
+  /// recibos desligados (testes de fluxos que não os exercitam); `main.dart`
+  /// sempre o passa.
+  final ReceiptStore? receiptStore;
 
   /// Cadastro corrente do motorista, repassado pela casca a cada alteração.
   /// A tela fica montada o tempo todo, então sem isto uma edição de formas de
@@ -772,11 +781,12 @@ class _MapScreenState extends State<MapScreen> {
           'conecte-se a um relay e tente novamente.';
     }
 
+    final minhaReputacao = await _reputacaoPropria();
     final SignedEvent signed;
     try {
       signed = widget.identityService.signRideQuote(
         identity: identity,
-        quote: quote,
+        quote: quote.withReputation(minhaReputacao),
       );
     } on Object {
       // Emenda 17: sem cifrar, não se publica — nunca em claro.
@@ -797,8 +807,46 @@ class _MapScreenState extends State<MapScreen> {
       destinationLat: solicitacao.destination.latitude,
       destinationLon: solicitacao.destination.longitude,
     );
+    await _guardarReputacaoDoPassageiro(signed.event.id, solicitacao);
     if (dialogContext.mounted) Navigator.of(dialogContext).pop();
     return null;
+  }
+
+  /// Reputação própria a declarar no orçamento (emenda 25): a calculada dos
+  /// recibos recebidos, ou `null` — chave omitida — sem histórico. Falha de
+  /// leitura nunca impede o orçamento: ele sai sem o campo.
+  Future<Reputation?> _reputacaoPropria() async {
+    final loja = widget.receiptStore;
+    if (loja == null) return null;
+    try {
+      final minha = await loja.myReputation();
+      return minha.corridas == 0 ? null : minha;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Guarda a reputação que o passageiro declarou na solicitação respondida,
+  /// ligada ao `id` do orçamento (a corrida), para o recibo do fim da corrida
+  /// usar exatamente o que foi apresentado na negociação (1.7 passo 1). Sem
+  /// reputação gravamos uma vazia: linha presente = corrida registrada, passageiro
+  /// sem histórico (R4 de `specs/026-recibos-de-reputacao/research.md`). Falha
+  /// aqui não desfaz o orçamento já publicado; só deixa a corrida sem recibo.
+  Future<void> _guardarReputacaoDoPassageiro(
+    String quoteId,
+    RideRequestReceived solicitacao,
+  ) async {
+    final loja = widget.receiptStore;
+    if (loja == null) return;
+    try {
+      await loja.saveDeclared(
+        quoteId,
+        solicitacao.passengerPubkey,
+        solicitacao.reputation ?? const Reputation.empty(),
+      );
+    } on Object {
+      // Absorvida: sem registro, a corrida simplesmente não gera recibo.
+    }
   }
 
   /// Transiciona para "Deslocando-se até o passageiro" (FR-002), persiste o

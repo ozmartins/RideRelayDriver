@@ -54,6 +54,20 @@ class RideQuote {
   /// `null` — e a chave omitida do `content` — quando ele não tem recibos.
   final Reputation? reputation;
 
+  /// Cópia com a [reputation] própria do motorista (emenda 25).
+  RideQuote withReputation(Reputation? reputation) => RideQuote(
+    requestId: requestId,
+    passengerPubkey: passengerPubkey,
+    pricePerKm: pricePerKm,
+    total: total,
+    driverName: driverName,
+    carBrand: carBrand,
+    carModel: carModel,
+    carYear: carYear,
+    etaMinutes: etaMinutes,
+    reputation: reputation,
+  );
+
   @override
   String toString() =>
       'RideQuote($requestId, $driverName, $carBrand $carModel $carYear, '

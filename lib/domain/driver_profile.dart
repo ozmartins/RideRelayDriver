@@ -2,6 +2,17 @@ import 'municipio.dart';
 import 'payment_method.dart';
 import 'uf.dart';
 
+/// Menor raio de atendimento aceito, em km (FR-002 da feature 027).
+const int kRaioMinKm = 1;
+
+/// Maior raio de atendimento aceito, em km: o que as 9 células de precisão 3
+/// cobrem com folga (R3 de `specs/027-filtro-geografico-solicitacoes/research.md`).
+const int kRaioMaxKm = 100;
+
+/// Raio de atendimento padrão, em km: pré-preenchido no cadastro e aplicado a
+/// quem se cadastrou antes da feature 027 (FR-003).
+const int kRaioPadraoKm = 10;
+
 /// Cadastro do motorista: dados pessoais e do veículo.
 ///
 /// Não é segredo criptográfico (diferente de [Identity]) — corrupção ou perda
@@ -19,6 +30,7 @@ class DriverProfile {
     required this.paymentMethods,
     required this.precoPorKm,
     required this.anoVeiculo,
+    this.raioAtendimentoKm = kRaioPadraoKm,
   });
 
   final String nome;
@@ -40,6 +52,11 @@ class DriverProfile {
   /// Ano-modelo do veículo (feature 008). `isValido` exige uma faixa
   /// razoável (FR-001, FR-002).
   final int anoVeiculo;
+
+  /// Raio de atendimento, em km (feature 027): distância máxima, em linha reta,
+  /// da posição em que o motorista ficou online até a origem da corrida.
+  /// `isValido` exige `kRaioMinKm`–`kRaioMaxKm`.
+  final int raioAtendimentoKm;
 
   static final RegExp _placaValida = RegExp(r'^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$');
 
@@ -98,6 +115,19 @@ class DriverProfile {
     return ano;
   }
 
+  /// Converte o texto digitado do raio de atendimento para `int`, ou `null` se
+  /// inválido: só inteiros de [kRaioMinKm] a [kRaioMaxKm] (feature 027, FR-002).
+  /// Recusa vazio, não numérico, decimal, zero, negativo e acima do máximo.
+  static int? parseRaioKm(String raw) {
+    final texto = raw.trim();
+    if (!RegExp(r'^\d{1,4}$').hasMatch(texto)) return null;
+    final valor = int.parse(texto);
+    return isRaioValido(valor) ? valor : null;
+  }
+
+  /// Se [km] está entre [kRaioMinKm] e [kRaioMaxKm], inclusive.
+  static bool isRaioValido(int km) => km >= kRaioMinKm && km <= kRaioMaxKm;
+
   /// Verdadeiro somente se **todos** os campos deste cadastro passarem pelas
   /// próprias regras de validação — nome, marca, modelo e cor não vazios,
   /// placa em um dos dois formatos, UF entre as 27 válidas, cidade
@@ -120,7 +150,8 @@ class DriverProfile {
       paymentMethods.isNotEmpty &&
       precoPorKm > 0 &&
       anoVeiculo >= 1900 &&
-      anoVeiculo <= DateTime.now().year + 1;
+      anoVeiculo <= DateTime.now().year + 1 &&
+      isRaioValido(raioAtendimentoKm);
 
   /// Se o motorista aceita a forma de pagamento [wireValue] de uma solicitação
   /// de corrida (valor do campo `payment` do `kind: 20001`). Um valor que não é
@@ -143,6 +174,7 @@ class DriverProfile {
     Set<PaymentMethod>? paymentMethods,
     double? precoPorKm,
     int? anoVeiculo,
+    int? raioAtendimentoKm,
   }) {
     return DriverProfile(
       nome: nome ?? this.nome,
@@ -155,6 +187,7 @@ class DriverProfile {
       paymentMethods: paymentMethods ?? this.paymentMethods,
       precoPorKm: precoPorKm ?? this.precoPorKm,
       anoVeiculo: anoVeiculo ?? this.anoVeiculo,
+      raioAtendimentoKm: raioAtendimentoKm ?? this.raioAtendimentoKm,
     );
   }
 
@@ -176,6 +209,7 @@ class DriverProfile {
     'payment_methods': paymentMethods.map((p) => p.storageValue).join(','),
     'preco_por_km': precoPorKm,
     'ano_veiculo': anoVeiculo,
+    'raio_atendimento_km': raioAtendimentoKm,
   };
 
   factory DriverProfile.fromMap(Map<String, Object?> map) => DriverProfile(
@@ -189,6 +223,7 @@ class DriverProfile {
     paymentMethods: _paymentMethodsFromStorage(map['payment_methods']),
     precoPorKm: (map['preco_por_km'] as num).toDouble(),
     anoVeiculo: map['ano_veiculo'] as int,
+    raioAtendimentoKm: map['raio_atendimento_km'] as int? ?? kRaioPadraoKm,
   );
 
   /// Decodifica a coluna `payment_methods`. Um valor desconhecido (banco
@@ -218,7 +253,8 @@ class DriverProfile {
       other.paymentMethods.length == paymentMethods.length &&
       other.paymentMethods.containsAll(paymentMethods) &&
       other.precoPorKm == precoPorKm &&
-      other.anoVeiculo == anoVeiculo;
+      other.anoVeiculo == anoVeiculo &&
+      other.raioAtendimentoKm == raioAtendimentoKm;
 
   @override
   int get hashCode => Object.hash(
@@ -235,6 +271,7 @@ class DriverProfile {
     Object.hashAllUnordered(paymentMethods),
     precoPorKm,
     anoVeiculo,
+    raioAtendimentoKm,
   );
 
   @override

@@ -3,30 +3,42 @@ import 'municipio.dart';
 import 'payment_method.dart';
 import 'uf.dart';
 
-/// Etapa 1 do cadastro: dados do motorista (nome, UF e cidade de atuação).
+/// Etapa 1 do cadastro: dados do motorista (nome, UF, cidade de atuação e raio
+/// de atendimento).
 class DriverPersonalData {
   const DriverPersonalData({
     required this.nome,
     required this.uf,
     required this.cidade,
+    this.raioAtendimentoKm = kRaioPadraoKm,
   });
 
   final String nome;
   final String uf;
   final String cidade;
 
+  /// Raio de atendimento em km (feature 027), de [kRaioMinKm] a [kRaioMaxKm].
+  final int raioAtendimentoKm;
+
   bool get isValido =>
       DriverProfile.isTextoValido(nome) &&
       UF.isValida(uf) &&
-      Municipio.isValido(nome: cidade, uf: uf);
+      Municipio.isValido(nome: cidade, uf: uf) &&
+      DriverProfile.isRaioValido(raioAtendimentoKm);
 
-  Map<String, Object?> toMap() => {'nome': nome, 'uf': uf, 'cidade': cidade};
+  Map<String, Object?> toMap() => {
+    'nome': nome,
+    'uf': uf,
+    'cidade': cidade,
+    'raio_atendimento_km': raioAtendimentoKm,
+  };
 
   factory DriverPersonalData.fromMap(Map<String, Object?> map) =>
       DriverPersonalData(
         nome: map['nome'] as String,
         uf: map['uf'] as String,
         cidade: map['cidade'] as String,
+        raioAtendimentoKm: map['raio_atendimento_km'] as int? ?? kRaioPadraoKm,
       );
 
   @override
@@ -34,10 +46,11 @@ class DriverPersonalData {
       other is DriverPersonalData &&
       other.nome == nome &&
       other.uf == uf &&
-      other.cidade == cidade;
+      other.cidade == cidade &&
+      other.raioAtendimentoKm == raioAtendimentoKm;
 
   @override
-  int get hashCode => Object.hash(nome, uf, cidade);
+  int get hashCode => Object.hash(nome, uf, cidade, raioAtendimentoKm);
 }
 
 /// Etapa 2 do cadastro: dados do veículo.
@@ -147,7 +160,12 @@ class CadastroProgress {
 
   /// Progresso equivalente a um cadastro já completo (modo de edição).
   factory CadastroProgress.fromProfile(DriverProfile p) => CadastroProgress(
-    personal: DriverPersonalData(nome: p.nome, uf: p.uf, cidade: p.cidade),
+    personal: DriverPersonalData(
+      nome: p.nome,
+      uf: p.uf,
+      cidade: p.cidade,
+      raioAtendimentoKm: p.raioAtendimentoKm,
+    ),
     vehicle: DriverVehicleData(
       marca: p.marcaVeiculo,
       modelo: p.modeloVeiculo,
@@ -201,6 +219,7 @@ class CadastroProgress {
       paymentMethods: f.paymentMethods,
       precoPorKm: f.precoPorKm,
       anoVeiculo: v.ano,
+      raioAtendimentoKm: p.raioAtendimentoKm,
     );
   }
 }

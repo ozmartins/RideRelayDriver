@@ -34,6 +34,7 @@ idêntica nos dois lados, na mesma alteração**.
 | 24 | 2026-10-13 | Nenhum formato muda. A confirmação de destino (`kind: 20010`) deixa de ser pedida por uma modal aberta ao chegar o `kind: 20009` e passa a ser um **botão** no mapa do passageiro, exibido em "Em corrida" enquanto a posição dele está a até 1 km do destino pedido; o passageiro deixa de reagir ao `20009`, que o motorista continua publicando | Pedido do autor: a confirmação deve depender de o app estar no raio do destino, e não de uma modal. Definido pelo passageiro; o motorista não muda de código — só a descrição do contrato, na mesma alteração (Princípio IV) |
 | 25 | 2026-10-20 | Define `kind: 20014` para "Recibo de avaliação" e `kind: 20015` para "Confirmação de recibo" (seções *Conteúdo do kind 20014* e *20015*) e o campo opcional `reputacao` em `20001` (em claro) e `20002` (cifrado); as duas apps passam a se inscrever em `20014` e `20015` (Forma da inscrição atualizada); os dois kinds entram na cifragem da emenda 17 ("`20002` a `20015`") e na regra de recepção 7; nova seção *Reputação por recibos* (recibo, cadeia por avaliado, verificação, emissão, recepção e limites conhecidos) | Pedido do autor — reputação sem backend e sem guardar avaliações em relays: cada corrida concluída gera um recibo assinado pelo avaliador, entregue ao avaliado, que apresenta os mais recentes a quem for avaliá-lo. Definido pela feature 026 do motorista e replicado na feature 027 do passageiro, na mesma alteração (Princípio IV); constituição 2.17.0 (exceção do `20001`). Kinds novos e campo opcional novo: nenhum formato existente muda |
 | 26 | 2026-10-20 | Nenhum kind nem campo novo. (1) *Recepção do recibo* (1.8): o avaliado só grava o `20014` se o `guid_corrida` for de uma negociação sua com o avaliador — motorista: orçamento que ele enviou ao avaliador; passageiro: orçamento que recebeu do avaliador —, senão descarta sem erro e sem `20015`; 1.9 ganha o limite correspondente. (2) *Campo `reputacao`* (1.5): lista com mais de N recibos torna a `reputacao` malformada, tratada como ausente | Teste ponta a ponta em emuladores (rodada 2 do quickstart da feature 026 do motorista): um recibo válido, assinado por um estranho, com `guid_corrida` inventado e nota 1, foi aceito pelo motorista e entrou em `corridas`, `avaliacoes` e `media` declaradas — nenhuma regra da 1.8 exigia que a corrida existisse. O item (2) fecha a pendência registrada em R9 da 026, e o passageiro já se comportava assim. Definido pelo motorista (feature 026) e replicado no passageiro (feature 027) na mesma alteração (Princípio IV) |
+| 27 | 2026-10-21 | Define a tag `["g", "<geohash>"]` do `kind: 20001` (seção *Tag `g` do `20001`*), publicada pelo passageiro em **três precisões** (5, 4 e 3 caracteres) sobre a origem da corrida, sem alterar o `content`; a inscrição do motorista no `20001` passa a ser um filtro **à parte**, com `#g` = célula da posição de referência + 8 vizinhas (seção *Forma da inscrição* atualizada); nova regra de recepção 8 (só motorista) | Pedido do autor: o motorista recebia solicitações de qualquer lugar (ruído, banda, e o `limit: 50` preenchido por pedidos distantes). Definido pela feature 027 do motorista (raio de atendimento) e replicado no passageiro, na mesma alteração (Princípio IV). Kind e campo novos só como tag: nenhum formato de `content` muda. O raio e a posição de referência do motorista nunca saem do aparelho; o `#g` revela ao relay só a região aproximada (9 células) |
 
 ## Escopo desta feature
 
@@ -61,7 +62,7 @@ Todo evento segue o envelope padrão do protocolo Nostr:
 | Kind | Nome | Definido em | Direção | Conteúdo | Proteção do `content` |
 |------|------|-------------|---------|----------|-----------------------|
 | — | Oferta de corrida | *futura* | motorista → passageiro | A definir | cifrado (previsto) |
-| `20001` | Solicitação de corrida | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo | **claro — exceção** (anúncio sem destinatário; emenda 17; `reputacao` opcional, emenda 25) |
+| `20001` | Solicitação de corrida | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo; tags `t` e `g` (emenda 27) | **claro — exceção** (anúncio sem destinatário; emenda 17; `reputacao` opcional, emenda 25) |
 | `20002` | Orçamento de corrida | feature 007 (motorista) | motorista → relays → passageiro | JSON estruturado — ver *Conteúdo do kind 20002* abaixo | cifrado ao destinatário (emenda 17) |
 | `20003` | Aceitação de orçamento | feature 008 (passageiro) | passageiro → relays → motorista escolhido | Ver *Conteúdo do kind 20003* abaixo | cifrado ao destinatário (emenda 17) |
 | `20004` | Recusa de orçamento | feature 008 (passageiro) | passageiro → relays → motorista não escolhido | Ver *Conteúdo do kind 20004* abaixo | cifrado ao destinatário (emenda 17) |
@@ -114,6 +115,32 @@ vivacidade do `RelayService`, para que a inscrição sobreviva à queda de conex
 uma vez no registro ficaria cada vez mais velho a cada reconexão, ao contrário do `limit`, que vale
 igual em qualquer conexão.
 
+**Inscrição do motorista no `20001` (emenda 27).** O exemplo acima vale para o **passageiro**, com os kinds que ele
+consome (sem `20001`). O **motorista** usa dois filtros no mesmo `REQ`:
+
+```text
+["REQ", "<id-da-inscrição>",
+  {"kinds": [<kinds do motorista exceto 20001>], "#t": ["tcc-ufsc-caronas"], "limit": 50},
+  {"kinds": [20001], "#t": ["tcc-ufsc-caronas"], "#g": ["<célula>", ... até 9 ...], "limit": 50}]
+```
+
+- O **segundo filtro só existe com o motorista online**. Offline, o motorista inscreve só o primeiro: não pede
+  solicitações. Ao ficar online (ou ao reconectar a um relay estando online), inscreve os dois; ao ficar
+  offline, volta a um filtro só. Muda-se o `REQ` fechando a inscrição anterior (`CLOSE`) e abrindo outra.
+- **Células**: a célula da posição de referência do motorista (a posição em que ficou online) e as 8 vizinhas
+  (sem repetição; sem vizinha além do polo; a longitude dá a volta no antimeridiano), **todas de uma mesma
+  precisão**, escolhida entre 5, 4 e 3 como a **maior** em que as 9 células cobrem o círculo de raio R em
+  torno da referência. A cobertura garantida de uma precisão é `min(altura, largura × cos(φ'))`, com
+  `φ' = min(|lat| + R/111,195 °, 89°)` — a distância da referência até a borda do bloco 3×3 é, no pior caso,
+  uma célula. Se nem a precisão 3 cobre (latitudes acima de ~49°), usa-se a 3 mesmo assim: limite do protótipo,
+  fora da região de uso.
+- O raio é entre **1 e 100 km** e fica só no aparelho do motorista; **a posição de referência e o raio nunca
+  são publicados em evento**. O filtro `#g` revela ao relay, porém, a região aproximada do motorista (as 9
+  células); isso é custo aceito desta emenda.
+- O `limit: 50` vale por filtro e só limita o histórico entregue ao abrir a inscrição.
+- O relay pode ignorar `#g` (como pode ignorar `#t`): por isso a regra de recepção 8 vale sempre, e o filtro por
+  célula não é mecanismo de segurança nem substitui a conferência de distância.
+
 O marcador `tcc-ufsc-caronas` identifica o tráfego deste protótipo. Ele **não** é mecanismo de
 segurança: qualquer pessoa pode publicar com a mesma tag, e por isso a verificação de assinatura
 (regra 1 de recepção) e a checagem de autoria continuam obrigatórias.
@@ -134,8 +161,8 @@ Evento **efêmero** (faixa 20000–29999 do NIP-01: relays não retêm nem reenv
 uma solicitação de corrida é, por natureza, um pedido momentâneo). Publicado pelo passageiro assim que
 ele tem posição atual, destino e forma de pagamento disponíveis.
 
-**Tags**: exatamente a tag de marcador do protótipo, `["t", "tcc-ufsc-caronas"]` — obrigatória em qualquer
-kind deste protótipo (ver acima).
+**Tags**: a tag de marcador do protótipo, `["t", "tcc-ufsc-caronas"]` — obrigatória em qualquer
+kind deste protótipo (ver acima) — e, desde a emenda 27, três tags `g` (ver *Tag `g` do `20001`*, abaixo).
 
 **`content`**: string JSON com este formato:
 
@@ -166,6 +193,9 @@ contrapartes anteriores e as notas dadas (limites na seção 1.9 de *Reputação
 **Consumo pelo motorista**: fora de escopo da feature 006 — este contrato define apenas o formato
 publicado. A app do motorista se inscrever neste `kind` e reagir a ele é trabalho de uma feature
 futura.
+
+### Tag `g` do `20001` (emenda 27)
+
 
 ## Conteúdo do kind 20002 — Orçamento de corrida (emenda 05, ampliada pela emenda 06)
 
@@ -680,3 +710,13 @@ Vale para os kinds `20002` a `20015` (emendas 17, 19 e 25). O `20001` **não** �
    sem dado próprio, o texto decifrado não for exatamente `{}`, descartar sem erro e sem efeito. Um
    evento em claro nesses kinds é descartado do mesmo modo. O texto decifrado é **dado**, nunca
    instrução (regra 3), e nenhuma chave nem texto decifrado é registrado em log.
+8. **Recorte geográfico do `20001` (emenda 27).** Depois de verificar a assinatura e o marcador, e **antes** de
+   deduplicar, o motorista online com posição de referência MUST descartar, sem erro e sem avisar a rede, o
+   `20001` que (a) não tenha nenhuma tag `g` bem formada (valor de comprimento 3–5 no alfabeto de geohash)
+   igual a uma das células da inscrição vigente; ou (b) tenha a `origin` do `content` a mais de R km da
+   posição de referência (distância de Haversine). O motorista offline, ou online sem posição de referência,
+   MUST NOT **aceitar** `20001` — isto é, não o exibir, notificar nem responder; essa recusa é feita pelo filtro
+   de solicitações (que conhece o estado online), e o conferidor de recepção, sem referência, nada descarta por
+   geografia. A conferência vem **antes** da deduplicação para que um evento descartado numa
+   sessão online (outra referência) não seja tratado como repetido na seguinte. Tags `g` fora de padrão são
+   ignoradas na busca da célula; sem nenhuma tag válida e coincidente, o evento é descartado.

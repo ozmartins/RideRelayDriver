@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import '../../domain/driver_coverage.dart';
 import '../../domain/nostr_event.dart';
 import '../../domain/ride_request_filter.dart';
 import '../../domain/service_state.dart';
@@ -86,6 +87,11 @@ class RelayHostCore {
 
   /// O estado que a interface mandou por último (ou o persistido).
   ServiceState get state => _state;
+
+  /// A cobertura geográfica do motorista online (feature 027), só em memória:
+  /// nunca vai para o [ServiceStateStore], para log nem para notificação.
+  /// `null` sem referência — e então nenhuma solicitação é aceita.
+  DriverCoverage? coverage;
 
   /// Conecta sozinho a partir da lista persistida (não depende da interface) e
   /// avisa que está pronto.
@@ -176,7 +182,13 @@ class RelayHostCore {
     if (_state.appInForeground) return;
 
     // A mesma regra que abre a modal (FR-005).
-    if (!RideRequestFilter.evaluate(event, _state).accepted) return;
+    if (!RideRequestFilter.evaluate(
+      event,
+      _state,
+      coverage: coverage,
+    ).accepted) {
+      return;
+    }
 
     _pending.add(_Pending(payload, _now()));
     unawaited(notifier.notifyRideRequest(event.id));

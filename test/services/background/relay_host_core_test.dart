@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:driver/domain/driver_coverage.dart';
 import 'package:driver/domain/driver_ride_status.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/relay.dart';
@@ -41,20 +42,26 @@ void main() {
     agora = DateTime.utc(2026, 10, 11, 12);
     await RelayRepository(store).save([for (final u in relays) Relay(url: u)]);
     if (estado != null) await ServiceStateStore(store).save(estado);
-    core = RelayHostCore(
-      relays: RelayService(
-        gateway,
-        subscriptionKinds: driverConsumedKinds.toList(),
-        retryInterval: const Duration(days: 1),
-        livenessInterval: const Duration(days: 1),
-      ),
-      channel: canais.service,
-      stateStore: ServiceStateStore(store),
-      relayRepository: RelayRepository(store),
-      notifier: notifier,
-      acceptedKinds: driverConsumedKinds,
-      now: () => agora,
-    );
+    core =
+        RelayHostCore(
+            relays: RelayService(
+              gateway,
+              subscriptionKinds: driverConsumedKinds.toList(),
+              retryInterval: const Duration(days: 1),
+              livenessInterval: const Duration(days: 1),
+            ),
+            channel: canais.service,
+            stateStore: ServiceStateStore(store),
+            relayRepository: RelayRepository(store),
+            notifier: notifier,
+            acceptedKinds: driverConsumedKinds,
+            now: () => agora,
+          )
+          ..coverage = DriverCoverage.around(
+            lat: origemDeTesteLat,
+            lon: origemDeTesteLon,
+            radiusKm: 10,
+          );
     await core.start();
   }
 
@@ -78,6 +85,7 @@ void main() {
   Map<String, dynamic> solicitacao({String payment = 'pix'}) => signedPayload(
     kind: NostrEvent.kindRideRequest,
     content: rideRequestContent(payment: payment),
+    tags: tagsDeSolicitacao(),
   );
 
   group('RelayHostCore — verificação antes de tudo (Princípios II e IV)', () {

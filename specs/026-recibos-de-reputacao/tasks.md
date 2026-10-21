@@ -79,7 +79,7 @@ da constituição e o do contrato vêm **antes** de qualquer código (Princípio
 - [x] T032 Confirmar que `lib/services/background/` não decifra nem notifica por `20014`/`20015` (só repassa) e que o teste de `RelayHostCore` continua verde com os dois kinds no conjunto; acrescentar caso de teste que um `20014` válido é repassado ao canal sem notificação, em `test/services/background/`.
 - [ ] T033 Verificação de não vazamento (Princípio I): executar o cenário 3 do `quickstart.md`, registrar o resultado na seção "Resultados" do quickstart (log e conteúdo dos `20014`/`20015`/`20002`).
 - [x] T034 Rodar `dart format lib test`, `flutter analyze` (sem apontamentos) e `flutter test` (inteira, sem teste ignorado); corrigir o que aparecer.
-- [ ] T035 Executar os cenários 4–8 do `quickstart.md` em dois emuladores, medir de fato o tamanho do `content` do `20002` com 5 recibos (cenário 7, método descrito) e registrar tudo — inclusive o que falhar — em `quickstart.md` "Resultados".
+- [x] T035 Executar os cenários 4–8 do `quickstart.md` em dois emuladores, medir de fato o tamanho do `content` do `20002` com 5 recibos (cenário 7, método descrito) e registrar tudo — inclusive o que falhar — em `quickstart.md` "Resultados".
 - [x] T036 Atualizar `CLAUDE.md` (novos serviços, kinds consumidos, `receipts.db`) em **commit separado**, depois dos commits das mudanças que ele descreve.
 
 ## Dependências e ordem

@@ -1,6 +1,34 @@
 <!--
 SYNC IMPACT REPORT
 
+--- Emenda 2.18.0 (2026-10-21) ---
+Version change: 2.17.0 → 2.18.0
+Bump rationale: MINOR. A exceção do serviço em segundo plano às Restrições de Segurança e Privacidade passa a
+  admitir que, no motorista, a interface envie ao serviço a posição de referência e o raio de atendimento, só em
+  memória, e que o serviço leia a `origin` do `content` do `kind: 20001`. Nenhum Princípio foi alterado; nenhuma
+  obrigação foi removida (o serviço continua sem acessar o sensor de localização, sem chave e sem decifrar).
+Motivador: pedido do autor — filtro geográfico das solicitações de corrida (emenda 27 do contrato, feature
+  `027-filtro-geografico-solicitacoes` do motorista; contrapartida do passageiro: publicar a tag `g`). A decisão de
+  notificar do serviço precisa aplicar o mesmo corte por raio da interface; sem a referência, só daria para cortar
+  por célula (várias vezes maior que o raio) e notificaria solicitações fora do raio. A exceção exigia dados públicos
+  do evento e estado persistido pela interface; a referência é posição exata do motorista e, por decisão da
+  especificação, nunca é persistida. A seção exige registrar a exceção antes do código; este é o registro.
+Custo aceito: o serviço passa a conhecer a posição exata do motorista enquanto ele está online (em memória, no
+  mesmo processo do app). Sem a referência (processo morto pelo sistema), o serviço reinicia sem cobertura e não
+  recebe `20001` até a interface voltar. O filtro `#g` revela ao relay a região aproximada (9 células) do motorista
+  online; o raio e a posição exata não saem do aparelho.
+Emendada em conjunto com a constituição espelho (`Prototipo/passenger`), na mesma alteração e com texto idêntico
+  salvo nome, escopo e perspectiva: o serviço do passageiro não recebe posição, e o texto da exceção que se aplica
+  só ao motorista fica igual nos dois arquivos. A constituição de `Prototipo/` não repete esta seção.
+
+Princípios modificados: nenhum. Seções adicionadas/removidas: nenhuma.
+Seções modificadas: Restrições de Segurança e Privacidade — exceção do serviço em segundo plano.
+
+Propagação:
+  ✅ Constituição espelho — emendada na mesma alteração; corpos conferidos por diff.
+  ◻ Prototipo/.specify/memory/constitution.md — não contém esta seção; sem alteração necessária.
+  ⚠ Contrato (emenda 27), código e `CLAUDE.md`, em commits separados (posteriores).
+
 --- Emenda 2.17.0 (2026-10-20) ---
 Version change: 2.16.0 → 2.17.0
 Bump rationale: MINOR. A exceção do `kind: 20001` às Restrições de Segurança e Privacidade (só assinado, em claro,
@@ -684,10 +712,16 @@ seja auditado ou reproduzido.
   do motorista e `026-conexao-em-segundo-plano` do passageiro). No motorista o serviço fica ativo enquanto o
   app está visível ou o motorista está online; no passageiro, enquanto o app está visível ou há solicitação ou
   corrida ativa. Essa exceção só vale sob todas estas condições: o serviço MUST NOT ler nem receber a chave
-  privada ou a semente, MUST NOT decifrar mensagens e MUST NOT acessar a localização; ele só verifica
+  privada ou a semente, MUST NOT decifrar mensagens e MUST NOT acessar o sensor de localização; ele só verifica
   assinatura, deduplica, repassa eventos e publica o que a interface já assinou e cifrou; a decisão de
   notificar MUST usar apenas dados públicos do evento (kind, autor, tags) e o estado persistido pela
-  interface; a notificação MUST NOT conter endereço, coordenada, nome, placa nem chave pública de terceiros;
+  interface, com uma única ampliação, só no motorista (feature `027-filtro-geografico-solicitacoes`): a
+  interface pode enviar ao serviço a posição de referência do raio de atendimento e o raio, exclusivamente
+  para aplicar o mesmo filtro geográfico da interface às solicitações (`kind: 20001`), e o serviço pode ler a
+  `origin` do `content` desse kind, que já é público; a posição de referência e o raio MUST ficar só em memória
+  — MUST NOT ser gravados em armazenamento (inclusive no estado persistido pela interface), publicados em
+  evento, registrados em log nem exibidos em notificação — e MUST ser descartados quando o motorista fica
+  offline; a notificação MUST NOT conter endereço, coordenada, nome, placa nem chave pública de terceiros;
   o serviço MUST ser iniciado pela interface, com o app visível, nunca no boot do aparelho nem por receptor
   em segundo plano; e nenhum serviço de push de terceiros (FCM, UnifiedPush ou semelhante) é permitido. Toda
   feature que use esta exceção MUST registrar a decisão de dependência no `research.md` correspondente,
@@ -883,4 +917,4 @@ entre elas é defeito a corrigir, não risco a administrar.
 A seção Padrão de Commits é, além disso, compartilhada com a constituição de `Prototipo/`, com
 texto idêntico, e MUST ser emendada nas três ao mesmo tempo.
 
-**Version**: 2.17.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-10-20
+**Version**: 2.18.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-10-21

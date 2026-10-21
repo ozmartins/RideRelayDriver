@@ -58,4 +58,3 @@ esquecido: são decisões suas e limitações conhecidas.
 - Onde está cada coisa: contrato em `specs/002-nostr-relay-connection/contracts/nostr-events.md` (emendas 25 e 26, seção "Reputação por
   recibos"); resultados do quickstart em `specs/026-recibos-de-reputacao/quickstart.md` ("Resultados", rodadas 1 a 3); decisões em
   `specs/026-recibos-de-reputacao/research.md` (R1 a R9).
-- **Este arquivo não foi commitado.**

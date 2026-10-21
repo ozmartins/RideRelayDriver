@@ -6,9 +6,12 @@ import 'package:latlong2/latlong.dart';
 import '../domain/driver_profile.dart';
 import '../domain/ride_quote.dart';
 import '../domain/ride_request_received.dart';
+import '../domain/reputation_view.dart';
+import '../services/reputation_verifier.dart';
 import '../services/reverse_geocoding_service.dart';
 import '../services/route_distance_service.dart';
 import 'identidade_visual.dart';
+import 'reputation_summary.dart';
 
 /// Modal exibida quando o motorista, online, recebe uma solicitação de
 /// corrida (feature 007).
@@ -76,9 +79,20 @@ class _RideRequestModalState extends State<RideRequestModal> {
   var _enviando = false;
   String? _erroEnvio;
 
+  /// Reputação do passageiro verificada uma vez (emenda 25); `null` = sem
+  /// histórico, inclusive quando veio malformada.
+  late final ReputationView? _reputacao;
+
   @override
   void initState() {
     super.initState();
+    final declarada = widget.request.reputation;
+    _reputacao = declarada == null
+        ? null
+        : verifyReputation(
+            declarada,
+            authorPubkey: widget.request.passengerPubkey,
+          );
     _preco = TextEditingController(
       text: widget.driverProfile.precoPorKm
           .toStringAsFixed(2)
@@ -274,7 +288,8 @@ class _RideRequestModalState extends State<RideRequestModal> {
                 _aproximadaTrajeto,
               ),
             ),
-            const SizedBox(height: 12),
+            ReputationSummary(view: _reputacao),
+            const SizedBox(height: 4),
             TextField(
               controller: _preco,
               keyboardType: const TextInputType.numberWithOptions(

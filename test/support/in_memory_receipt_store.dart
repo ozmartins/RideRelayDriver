@@ -55,6 +55,9 @@ class InMemoryReceiptStore implements ReceiptStore {
   }
 
   @override
+  Future<Receipt?> issuedFor(String guidCorrida) async => _issued[guidCorrida];
+
+  @override
   Future<List<Receipt>> pendingIssued() async => [
     for (final r in _issued.values)
       if (_pending.contains(r.idRecibo)) r,

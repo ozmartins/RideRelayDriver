@@ -95,6 +95,23 @@ void main() {
       },
     );
 
+    test(
+      'issuedFor devolve o recibo emitido, pendente ou confirmado',
+      () async {
+        final store = InMemoryReceiptStore();
+        final r = signedReceipt(
+          avaliador: newTestIdentity(),
+          avaliado: dono,
+          seq: 0,
+        );
+        expect(await store.issuedFor(r.guidCorrida), isNull);
+        await store.saveIssued(r);
+        expect(await store.issuedFor(r.guidCorrida), r);
+        await store.markAcked(r.idRecibo);
+        expect(await store.issuedFor(r.guidCorrida), r);
+      },
+    );
+
     test('markAcked de id desconhecido não altera os pendentes', () async {
       final store = InMemoryReceiptStore();
       final r = signedReceipt(

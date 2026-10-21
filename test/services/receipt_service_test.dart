@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:driver/domain/active_ride.dart';
 import 'package:driver/domain/identity.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/receipt.dart';
+import 'package:driver/domain/reputation.dart';
 import 'package:driver/services/identity_service.dart';
 import 'package:driver/services/message_cipher.dart';
 import 'package:driver/services/prototype_marker.dart';
@@ -443,6 +445,388 @@ void main() {
       identidadeAtual = null;
       await service.onAckEvent(ack());
       expect(await store.pendingIssued(), [emitido]);
+    });
+  });
+
+  group('ReceiptService.issueFor (1.7)', () {
+    ActiveRide corrida() => ActiveRide(
+      quoteId: fakeGuid(70),
+      passengerPubkey: passageiro.publicKey,
+      originLat: -28.9,
+      originLon: -49.4,
+      destinationLat: -28.6,
+      destinationLon: -49.3,
+    );
+
+    /// Reputação declarada do passageiro com [n] recibos encadeados.
+    Reputation declarada(int n) {
+      final cadeia = signedChain(
+        avaliado: passageiro.publicKey,
+        notas: List.filled(n, 4),
+      );
+      return Reputation(
+        corridas: n,
+        avaliacoes: n,
+        media: 4.0,
+        seqProximo: n,
+        head: cadeia.last.idRecibo,
+        recibos: cadeia.reversed.toList(),
+      );
+    }
+
+    Receipt? reciboPublicado(SignedEvent e) {
+      final texto = MessageCipher().decryptFrom(
+        passageiro,
+        motorista.publicKey,
+        e.event.content,
+      );
+      return texto == null ? null : Receipt.fromJson(jsonDecode(texto));
+    }
+
+    test(
+      'emite com seq e hash_anterior vindos da reputação declarada',
+      () async {
+        final rep = declarada(2);
+        await store.saveDeclared(corrida().quoteId, passageiro.publicKey, rep);
+
+        final resultado = await service.issueFor(corrida(), 5);
+
+        expect(resultado, ReceiptIssue.issued);
+        final emitido = (await store.pendingIssued()).single;
+        expect(emitido.seq, 2);
+        expect(emitido.hashAnterior, rep.head);
+        expect(emitido.nota, 5);
+        expect(emitido.guidCorrida, corrida().quoteId);
+        expect(emitido.pubkeyAvaliador, motorista.publicKey);
+        expect(emitido.pubkeyAvaliado, passageiro.publicKey);
+        expect(emitido.v, 1);
+        expect(ReceiptSignature.verify(emitido), isTrue);
+
+        expect(publicados, hasLength(1));
+        expect(publicados.single.event.kind, NostrEvent.kindReceipt);
+        expect(
+          publicados.single.event.recipientPublicKey,
+          passageiro.publicKey,
+        );
+        expect(publicados.single.event.referencedEventId, corrida().quoteId);
+        expect(reciboPublicado(publicados.single), emitido);
+      },
+    );
+
+    test('sem nota (pular a avaliação): o recibo omite a nota', () async {
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        declarada(1),
+      );
+
+      await service.issueFor(corrida(), null);
+
+      final emitido = (await store.pendingIssued()).single;
+      expect(emitido.nota, isNull);
+      expect(emitido.toJson().containsKey('nota'), isFalse);
+      expect(ReceiptSignature.verify(emitido), isTrue);
+    });
+
+    test(
+      'passageiro sem histórico (reputação vazia): seq 0, sem hash',
+      () async {
+        await store.saveDeclared(
+          corrida().quoteId,
+          passageiro.publicKey,
+          const Reputation.empty(),
+        );
+
+        await service.issueFor(corrida(), 3);
+
+        final emitido = (await store.pendingIssued()).single;
+        expect(emitido.seq, 0);
+        expect(emitido.hashAnterior, isNull);
+      },
+    );
+
+    test('corrida sem registro da reputação: não emite', () async {
+      final resultado = await service.issueFor(corrida(), 5);
+
+      expect(resultado, ReceiptIssue.skipped);
+      expect(await store.pendingIssued(), isEmpty);
+      expect(publicados, isEmpty);
+    });
+
+    test('reputação inconsistente: não emite e não publica', () async {
+      final rep = declarada(2);
+      final inconsistente = Reputation(
+        corridas: rep.corridas,
+        avaliacoes: rep.avaliacoes,
+        media: rep.media,
+        seqProximo: rep.seqProximo,
+        head: fakeGuid(12345), // não é o recibo de seq 1
+        recibos: rep.recibos,
+      );
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        inconsistente,
+      );
+
+      final resultado = await service.issueFor(corrida(), 5);
+
+      expect(resultado, ReceiptIssue.inconsistent);
+      expect(await store.pendingIssued(), isEmpty);
+      expect(await store.issuedFor(corrida().quoteId), isNull);
+      expect(publicados, isEmpty);
+    });
+
+    test('grava como pendente antes de publicar', () async {
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        declarada(1),
+      );
+      var pendentesNaPublicacao = -1;
+      final conferindo = ReceiptService(
+        store: store,
+        identityService: servicoDoMotorista,
+        identity: () => motorista,
+        publish: (_) async {
+          pendentesNaPublicacao = (await store.pendingIssued()).length;
+          return true;
+        },
+      );
+
+      await conferindo.issueFor(corrida(), 5);
+
+      expect(pendentesNaPublicacao, 1);
+    });
+
+    test('falha ao publicar: o recibo fica pendente e nada lança', () async {
+      relayAceita = false;
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        declarada(1),
+      );
+      final falho = ReceiptService(
+        store: store,
+        identityService: servicoDoMotorista,
+        identity: () => motorista,
+        publish: (_) async => throw StateError('sem relay'),
+      );
+
+      final resultado = await falho.issueFor(corrida(), 5);
+
+      expect(resultado, ReceiptIssue.issued);
+      expect(await store.pendingIssued(), hasLength(1));
+    });
+
+    test(
+      'segunda chamada para a mesma corrida não emite outro recibo',
+      () async {
+        await store.saveDeclared(
+          corrida().quoteId,
+          passageiro.publicKey,
+          declarada(1),
+        );
+        await service.issueFor(corrida(), 5);
+
+        final resultado = await service.issueFor(corrida(), 1);
+
+        expect(resultado, ReceiptIssue.alreadyIssued);
+        expect(publicados, hasLength(1));
+        expect((await store.pendingIssued()).single.nota, 5);
+      },
+    );
+
+    test('sem identidade: não emite', () async {
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        declarada(1),
+      );
+      identidadeAtual = null;
+
+      expect(await service.issueFor(corrida(), 5), ReceiptIssue.skipped);
+      expect(publicados, isEmpty);
+    });
+
+    test('a chave privada não vai ao recibo, ao evento nem ao store', () async {
+      await store.saveDeclared(
+        corrida().quoteId,
+        passageiro.publicKey,
+        declarada(1),
+      );
+      await service.issueFor(corrida(), 5);
+
+      final emitido = (await store.pendingIssued()).single;
+      expect(
+        jsonEncode(emitido.toJson()),
+        isNot(contains(motorista.privateKey)),
+      );
+      expect(
+        publicados.single.event.content,
+        isNot(contains(motorista.privateKey)),
+      );
+      expect(
+        jsonEncode(publicados.single.payload),
+        isNot(contains(motorista.privateKey)),
+      );
+    });
+  });
+
+  group('ReceiptService.retryPending (1.7 passo 5)', () {
+    Future<Receipt> emitirUm() async {
+      final r = signedReceipt(
+        avaliador: motorista,
+        avaliado: passageiro.publicKey,
+        seq: 0,
+        nota: 5,
+        guid: fakeGuid(80),
+      );
+      await store.saveIssued(r);
+      return r;
+    }
+
+    test(
+      'republica os pendentes como eventos novos com o mesmo recibo',
+      () async {
+        final r = await emitirUm();
+
+        await service.retryPending();
+        await service.retryPending();
+
+        expect(publicados, hasLength(2));
+        expect(publicados[0].event.id, isNot(publicados[1].event.id));
+        for (final p in publicados) {
+          expect(p.event.kind, NostrEvent.kindReceipt);
+          final texto = MessageCipher().decryptFrom(
+            passageiro,
+            motorista.publicKey,
+            p.event.content,
+          )!;
+          expect(Receipt.fromJson(jsonDecode(texto)), r);
+        }
+      },
+    );
+
+    test('para depois da confirmação (20015) correspondente', () async {
+      final r = await emitirUm();
+      await service.retryPending();
+      expect(publicados, hasLength(1));
+
+      final ack = IdentityService(InMemoryKeyStore())
+          .signReceiptAck(
+            identity: passageiro,
+            guid: r.guidCorrida,
+            idRecibo: r.idRecibo,
+            avaliadorPubkey: motorista.publicKey,
+          )
+          .event;
+      await service.onAckEvent(ack);
+      await service.retryPending();
+
+      expect(publicados, hasLength(1));
+    });
+
+    test('sem pendentes, ou sem identidade, não publica nada', () async {
+      await service.retryPending();
+      expect(publicados, isEmpty);
+
+      await emitirUm();
+      identidadeAtual = null;
+      await service.retryPending();
+      expect(publicados, isEmpty);
+    });
+
+    test('falha em um recibo não impede o reenvio dos outros', () async {
+      await emitirUm();
+      final outro = signedReceipt(
+        avaliador: motorista,
+        avaliado: passageiro.publicKey,
+        seq: 1,
+        guid: fakeGuid(81),
+      );
+      await store.saveIssued(outro);
+      var chamadas = 0;
+      final instavel = ReceiptService(
+        store: store,
+        identityService: servicoDoMotorista,
+        identity: () => motorista,
+        publish: (_) async {
+          chamadas++;
+          if (chamadas == 1) throw StateError('queda');
+          return true;
+        },
+      );
+
+      await instavel.retryPending();
+
+      expect(chamadas, 2);
+    });
+
+    testWidgets('o temporizador reenvia a cada 60 s até a confirmação', (
+      tester,
+    ) async {
+      final enviados = <SignedEvent>[];
+      final temporizado = ReceiptService(
+        store: store,
+        identityService: servicoDoMotorista,
+        identity: () => motorista,
+        publish: (e) async {
+          enviados.add(e);
+          return true;
+        },
+      );
+      final r = signedReceipt(
+        avaliador: motorista,
+        avaliado: passageiro.publicKey,
+        seq: 0,
+        guid: fakeGuid(82),
+      );
+      await store.saveIssued(r);
+
+      temporizado.start();
+      temporizado.start(); // idempotente: um só temporizador
+      await tester.pump(const Duration(seconds: 59));
+      expect(enviados, isEmpty);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(enviados, hasLength(1));
+
+      await tester.pump(const Duration(seconds: 60));
+      expect(enviados, hasLength(2));
+
+      await store.markAcked(r.idRecibo);
+      await tester.pump(const Duration(seconds: 120));
+      expect(enviados, hasLength(2));
+
+      temporizado.dispose();
+    });
+
+    testWidgets('depois do dispose o temporizador não reenvia', (tester) async {
+      final enviados = <SignedEvent>[];
+      final temporizado = ReceiptService(
+        store: store,
+        identityService: servicoDoMotorista,
+        identity: () => motorista,
+        publish: (e) async {
+          enviados.add(e);
+          return true;
+        },
+      );
+      await store.saveIssued(
+        signedReceipt(
+          avaliador: motorista,
+          avaliado: passageiro.publicKey,
+          seq: 0,
+          guid: fakeGuid(83),
+        ),
+      );
+      temporizado.start();
+      temporizado.dispose();
+
+      await tester.pump(const Duration(minutes: 5));
+
+      expect(enviados, isEmpty);
     });
   });
 }

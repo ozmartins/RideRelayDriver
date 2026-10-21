@@ -138,3 +138,17 @@ recibo de nota 1 entrou em `corridas`, `avaliacoes` e `media` **declaradas** pel
 apresentada ficaria correta neste caso só porque os recibos reais são mais recentes por `criado_em`. Os "Limites conhecidos" (1.9) não citam isso. Mitigação possível, que
 exige emenda do contrato nas duas apps: só aceitar recibo cujo `guid_corrida` seja um orçamento que o próprio receptor enviou ou recebeu e foi aceito (o motorista já guarda
 os orçamentos enviados; o passageiro, os recebidos). Corrigido pela **emenda 26** (contrato 1.8: só grava recibo de corrida conhecida com o avaliador), implementada nos dois apps; o teste automatizado reproduz o caso do estranho com corrida inventada. A mitigação não impede que quem negociou com o avaliado lhe emita recibo de corrida que não houve (1.9).
+
+### Rodada 3 — verificação da emenda 26 em emulador (mesmo emulador, 3 relays públicos)
+
+Com os dois apps reconstruídos (APKs de debug) e instalados por cima, preservando os dados:
+
+- **Corrida legítima (4ª):** pedido, orçamento, aceitação, encontro, destino e avaliação pelos dois lados. Os dois `receipts.db` ganharam o recibo `seq` 3 (motorista:
+  nota 5 do passageiro; passageiro: nota 4 do motorista) e todos os `recibos_emitidos` ficaram com `pendente = 0`. Antes da corrida, a modal do motorista mostrou
+  "Reputação verificada: 4,00 ★ em 3 recibos". A regra da emenda 26 não barrou a corrida real.
+- **Recibo válido de um estranho, com corrida inventada e nota 1** (assinado com chave descartável, cifrado ao destinatário): publicado nos relays para o **motorista**
+  (`recibos_recebidos` ficou em 5) e para o **passageiro** (ficou em 4), cada um com o app em primeiro plano. Os dois ignoraram. No cenário 8 da rodada 2, o mesmo tipo
+  de recibo tinha sido aceito.
+- Dois dos três relays públicos aceitaram os eventos; `offchain.pub` rejeitou ("pubkey is not in our web of trust"). Observação: os dois eventos de teste ficam nos
+  relays com o marcador do protótipo, efêmeros, endereçados às chaves de teste.
+- O que **não** foi exercitado em emulador: recibo de uma negociação real, mas ligada a outro avaliador (coberto só por teste automatizado nos dois apps).

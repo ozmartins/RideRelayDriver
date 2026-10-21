@@ -27,6 +27,7 @@ import '../services/event_feed.dart';
 import '../services/identity_service.dart';
 import '../services/location_service.dart';
 import '../services/background/service_controller.dart';
+import '../services/receipt_service.dart';
 import '../services/receipt_store.dart';
 import '../services/relay_connection.dart';
 import '../services/ride_rating_store.dart';
@@ -66,6 +67,7 @@ class MapScreen extends StatefulWidget {
     this.driverProfile,
     this.serviceController,
     this.receiptStore,
+    this.receiptService,
   });
 
   final LocationService locationService;
@@ -97,6 +99,9 @@ class MapScreen extends StatefulWidget {
   /// recibos desligados (testes de fluxos que não os exercitam); `main.dart`
   /// sempre o passa.
   final ReceiptStore? receiptStore;
+
+  /// Recebe `20014`/`20015` do feed (feature 026). Nulo = recibos desligados.
+  final ReceiptService? receiptService;
 
   /// Cadastro corrente do motorista, repassado pela casca a cada alteração.
   /// A tela fica montada o tempo todo, então sem isto uma edição de formas de
@@ -403,7 +408,24 @@ class _MapScreenState extends State<MapScreen> {
       } else if (evento.kind == NostrEvent.kindRideCancelledByPassenger) {
         if (!_idsProcessados.add(evento.id)) continue;
         _processarCancelamentoDoPassageiro(evento);
+      } else if (evento.kind == NostrEvent.kindReceipt) {
+        if (!_idsProcessados.add(evento.id)) continue;
+        // Regra 7 e validação ficam no serviço; nada aqui bloqueia a interface.
+        unawaited(_absorver(widget.receiptService?.onReceiptEvent(evento)));
+      } else if (evento.kind == NostrEvent.kindReceiptAck) {
+        if (!_idsProcessados.add(evento.id)) continue;
+        unawaited(_absorver(widget.receiptService?.onAckEvent(evento)));
       }
+    }
+  }
+
+  /// Falha ao tratar um recibo ou confirmação não pode derrubar a tela nem
+  /// virar erro não tratado: o avaliador reenvia (1.7 passo 5).
+  Future<void> _absorver(Future<void>? tarefa) async {
+    try {
+      await tarefa;
+    } on Object {
+      // Absorvida.
     }
   }
 

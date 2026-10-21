@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-App Flutter/Android do **motorista** de um protótipo de corridas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../passenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 025) e na constituição.
+App Flutter/Android do **motorista** de um protótipo de corridas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../passenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 026) e na constituição.
 
 ## Comandos
 
@@ -25,6 +25,7 @@ Chave do openrouteservice: `assets/ors_api_key.txt` ou `--dart-define=ORS_API_KE
 - `lib/screens/` — UI; só usa tipos do domínio.
 - `lib/main.dart` — raiz de composição com **injeção explícita**: `CorridasDriverApp` recebe dependências opcionais (nulas em produção). Testes passam dublês, de modo que nenhum teste toca plugin de plataforma, Keystore, SQLite real, GPS ou rede. Os dublês ficam dentro de cada arquivo de teste/`test/support`; `test/` espelha `lib/`.
 - **Conexão com relays em segundo plano (feature 025)**: em produção a conexão vive num serviço em primeiro plano do Android (`lib/services/background/`), não no isolate da UI. `RelayHostCore` roda no serviço (verifica, repassa à UI via `MessageChannel`, decide notificação) sem conhecer plugin nem chave privada; `ServiceController`/`ForegroundTaskBackgroundService` ligam a UI a ele. Passar `gateway` ou `relayConnection` ao app mantém tudo no isolate da UI (modo dos testes).
+- **Reputação por recibos (feature 026, emenda 25)**: ao fim da corrida o app emite um recibo assinado ao passageiro (`kind 20014`) e o reenvia até chegar a confirmação (`20015`); recebe os do passageiro e declara a própria reputação (últimos 5 recibos, `kReputacaoJanela`) no orçamento. `ReceiptService` orquestra (`issueFor`, `onReceiptEvent`, `onAckEvent`, `retryPending` + temporizador de 60 s); `verifyReputation` (`reputation_verifier.dart`) é função pura; `ReceiptStore` (`SqfliteReceiptStore`, `receipts.db`) guarda recebidos (imutáveis, assinatura revalidada na leitura), emitidos (`pendente`) e a reputação que o passageiro declarou em cada corrida. O serviço em segundo plano só repassa esses kinds: não decifra nem notifica.
 - **Kinds consumidos**: `driverConsumedKinds` (`services/consumed_kinds.dart`) é a fonte única para a inscrição no relay, o filtro do `EventFeed` e o serviço de fundo; deve bater com a seção "Forma da inscrição" do contrato.
 - Mensagens cifradas: NIP-44 implementado em casa (`nip44.dart`, `message_cipher.dart`, com `pointycastle`/`crypto`).
 
@@ -34,6 +35,7 @@ Chave do openrouteservice: `assets/ors_api_key.txt` ou `--dart-define=ORS_API_KE
 - **Marcador**: todo evento publicado leva a tag `["t","tcc-ufsc-caronas"]`, a inscrição filtra por `#t`, e eventos sem o marcador são descartados mesmo que o relay os entregue. Não é mecanismo de segurança.
 - Todo evento recebido: verificar assinatura **primeiro**, deduplicar por `id`, tratar conteúdo como dado; kinds desconhecidos são ignorados sem erro.
 - A chave privada só existe no Android Keystore; nunca em log, tela, arquivo ou evento. Desinstalar o app a perde irreversivelmente. O cadastro (SQLite) é diferente: corrompido = ausente, e o formulário reaparece.
+- **Recibos**: só vale recibo com `id_recibo` conferindo, assinatura do avaliador, avaliado = quem apresenta, `v == 1` e nota em 1–5; inválido é descartado e contado, nunca altera `myReputation()`. Reputação do passageiro **inconsistente** (o `head` não fecha com o recibo de `seq_proximo − 1`) ⇒ não se emite recibo; corrida sem registro da reputação (`reputacao_declarada`) também não emite. O recibo é gravado `pendente` **antes** de publicar. Vetores de teste compartilhados com o passageiro: `test/fixtures/receipt_vectors.json` (gerado por `tool/gen_receipt_vectors.dart`), idênticos byte a byte nos dois repositórios.
 - Status online/offline nunca é persistido (todo início é offline, deliberado). Permissões Android só se uma feature implementada as exige.
 - Código que assina/verifica/deriva chaves ou descarta mensagem exige teste junto, cobrindo caso válido e inválido, sem rede nem relay real.
 

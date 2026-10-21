@@ -80,7 +80,7 @@ da constituição e o do contrato vêm **antes** de qualquer código (Princípio
 - [ ] T033 Verificação de não vazamento (Princípio I): executar o cenário 3 do `quickstart.md`, registrar o resultado na seção "Resultados" do quickstart (log e conteúdo dos `20014`/`20015`/`20002`).
 - [x] T034 Rodar `dart format lib test`, `flutter analyze` (sem apontamentos) e `flutter test` (inteira, sem teste ignorado); corrigir o que aparecer.
 - [ ] T035 Executar os cenários 4–8 do `quickstart.md` em dois emuladores, medir de fato o tamanho do `content` do `20002` com 5 recibos (cenário 7, método descrito) e registrar tudo — inclusive o que falhar — em `quickstart.md` "Resultados".
-- [ ] T036 Atualizar `CLAUDE.md` (novos serviços, kinds consumidos, `receipts.db`) em **commit separado**, depois dos commits das mudanças que ele descreve.
+- [x] T036 Atualizar `CLAUDE.md` (novos serviços, kinds consumidos, `receipts.db`) em **commit separado**, depois dos commits das mudanças que ele descreve.
 
 ## Dependências e ordem
 

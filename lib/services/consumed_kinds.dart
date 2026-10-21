@@ -14,4 +14,7 @@ const Set<int> driverConsumedKinds = {
   NostrEvent.kindMeetingConfirmed,
   NostrEvent.kindDestinationConfirmed,
   NostrEvent.kindRideCancelledByPassenger,
+  // Emenda 25 (feature 026): recibos de avaliação e confirmações.
+  NostrEvent.kindReceipt,
+  NostrEvent.kindReceiptAck,
 };

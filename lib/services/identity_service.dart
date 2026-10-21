@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../domain/identity.dart';
 import '../domain/nostr_event.dart';
+import '../domain/receipt.dart';
 import '../domain/ride_quote.dart';
 import '../domain/ride_route_content.dart';
 import 'key_store.dart';
@@ -103,6 +104,8 @@ class IdentityService {
           // Chave omitida quando indisponível, nunca null/0 (D2 de
           // specs/009-detalhes-do-orcamento/research.md).
           'etaMinutes': ?etaMinutes,
+          // Emenda 25: reputação própria; chave omitida quando não há recibos.
+          'reputacao': ?quote.reputation?.toJson(),
         }),
       ),
       keyPairs: keyPairs,
@@ -133,6 +136,36 @@ class IdentityService {
       },
     );
   }
+
+  /// Assina o recibo de avaliação (`kind: 20014`, emenda 25), endereçado ao
+  /// avaliado. O `content` é o recibo completo, cifrado ao avaliado — dado
+  /// próprio, não o marcador `{}`. Lança `Nip44Exception` se não der para
+  /// cifrar: nada é assinado em claro.
+  SignedEvent signReceipt({
+    required Identity identity,
+    required Receipt receipt,
+  }) => _signCorrelatedEvent(
+    identity: identity,
+    kind: NostrEvent.kindReceipt,
+    quoteId: receipt.guidCorrida,
+    passengerPubkey: receipt.pubkeyAvaliado,
+    content: jsonEncode(receipt.toJson()),
+  );
+
+  /// Assina a confirmação de recibo (`kind: 20015`, emenda 25), do avaliado ao
+  /// avaliador, com `{"id_recibo": …}` cifrado ao avaliador.
+  SignedEvent signReceiptAck({
+    required Identity identity,
+    required String guid,
+    required String idRecibo,
+    required String avaliadorPubkey,
+  }) => _signCorrelatedEvent(
+    identity: identity,
+    kind: NostrEvent.kindReceiptAck,
+    quoteId: guid,
+    passengerPubkey: avaliadorPubkey,
+    content: jsonEncode({'id_recibo': idRecibo}),
+  );
 
   /// Assina a localização atual do motorista (`kind: 20005`), publicada
   /// enquanto ele estiver "Deslocando-se até o passageiro" (FR-007 a
@@ -273,7 +306,8 @@ class IdentityService {
 
   /// Assina um evento no formato comum aos kinds 20005/20006/20007/20009/20011/20012:
   /// marcador do protótipo + `["e", quoteId]` + `["p", passengerPubkey]`, com o
-  /// `content` cifrado ao passageiro (emenda 17).
+  /// `content` cifrado ao destinatário (emenda 17). Os kinds 20014/20015 (emenda
+  /// 25) reaproveitam o formato: lá `passengerPubkey` é o outro participante.
   SignedEvent _signCorrelatedEvent({
     required Identity identity,
     required int kind,

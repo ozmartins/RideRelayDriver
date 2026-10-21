@@ -1,3 +1,5 @@
+import 'reputation.dart';
+
 /// Orçamento que o motorista está enviando (ou já enviou) para uma
 /// [RideRequestReceived] — `data-model.md` da feature 007, ampliado pela
 /// feature 009 com os dados do motorista/veículo e o tempo estimado.
@@ -12,6 +14,7 @@ class RideQuote {
     required this.carModel,
     required this.carYear,
     this.etaMinutes,
+    this.reputation,
   });
 
   /// Copiado de `RideRequestReceived.requestId` — vira a tag `["e", ...]`
@@ -46,6 +49,10 @@ class RideQuote {
   /// `specs/009-detalhes-do-orcamento/spec.md`). `null` quando essa duração
   /// não estava disponível — nunca um valor inventado (FR-003).
   final int? etaMinutes;
+
+  /// Reputação própria do motorista (emenda 25), declarada no orçamento.
+  /// `null` — e a chave omitida do `content` — quando ele não tem recibos.
+  final Reputation? reputation;
 
   @override
   String toString() =>

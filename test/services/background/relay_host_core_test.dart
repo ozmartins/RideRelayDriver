@@ -456,6 +456,56 @@ void main() {
         expect(notifier.notified, isEmpty);
       });
 
+      test(
+        'recibo (20014) e confirmação (20015) válidos são só repassados, sem '
+        'notificar nem decifrar (feature 026)',
+        () async {
+          await iniciar(estado: online);
+          // O conteúdo é opaco para o serviço: aqui, texto cifrado qualquer.
+          final recibo = signedPayload(
+            kind: NostrEvent.kindReceipt,
+            content: 'AuaCIAwsLvpa',
+          );
+          final confirmacao = signedPayload(
+            kind: NostrEvent.kindReceiptAck,
+            content: 'AuaCIAwsLvpb',
+          );
+
+          chega(recibo);
+          chega(confirmacao);
+          await pumpEventQueue();
+
+          expect(enviadas<ServiceIncoming>().map((m) => m.payload['id']), [
+            recibo['id'],
+            confirmacao['id'],
+          ]);
+          expect(notifier.notified, isEmpty);
+        },
+      );
+
+      test('20014 e 20015 com assinatura adulterada ou sem marcador são '
+          'descartados, e nada é notificado', () async {
+        await iniciar(estado: online);
+
+        chega(
+          signedPayload(kind: NostrEvent.kindReceipt, content: 'x')
+            ..['sig'] = 'f' * 128,
+        );
+        chega(
+          signedPayload(
+            kind: NostrEvent.kindReceiptAck,
+            content: 'x',
+            tags: const [],
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(enviadas<ServiceIncoming>(), isEmpty);
+        expect(core.discardedInvalidCount, 1);
+        expect(core.discardedUnmarkedCount, 1);
+        expect(notifier.notified, isEmpty);
+      });
+
       test('só a solicitação notifica, não os outros kinds', () async {
         await iniciar(estado: online);
 

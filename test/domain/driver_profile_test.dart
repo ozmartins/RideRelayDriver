@@ -1,3 +1,4 @@
+import 'package:driver/domain/cadastro_progress.dart';
 import 'package:driver/domain/driver_profile.dart';
 import 'package:driver/domain/payment_method.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -307,5 +308,128 @@ void main() {
       final b = perfilValido(paymentMethods: const {PaymentMethod.pix});
       expect(a, isNot(b));
     });
+  });
+  group('raio de atendimento — parseRaioKm', () {
+    test('aceita inteiros de 1 a 100, com espaços nas pontas', () {
+      expect(DriverProfile.parseRaioKm('10'), 10);
+      expect(DriverProfile.parseRaioKm(' 7 '), 7);
+      expect(DriverProfile.parseRaioKm('1'), 1);
+      expect(DriverProfile.parseRaioKm('100'), 100);
+    });
+
+    test(
+      'recusa vazio, não numérico, decimal, zero, negativo e acima de 100',
+      () {
+        for (final texto in [
+          '',
+          'abc',
+          '0',
+          '-5',
+          '101',
+          '2,5',
+          '2.5',
+          '1e2',
+        ]) {
+          expect(DriverProfile.parseRaioKm(texto), isNull, reason: texto);
+        }
+      },
+    );
+
+    test('as constantes são 1, 100 e 10', () {
+      expect(kRaioMinKm, 1);
+      expect(kRaioMaxKm, 100);
+      expect(kRaioPadraoKm, 10);
+    });
+  });
+
+  group('raio de atendimento — DriverProfile', () {
+    test('o construtor sem o parâmetro vale o padrão e é válido', () {
+      final perfil = perfilValido();
+      expect(perfil.raioAtendimentoKm, kRaioPadraoKm);
+      expect(perfil.isValido, isTrue);
+    });
+
+    test('raio fora de 1–100 invalida o cadastro', () {
+      expect(perfilValido().copyWith(raioAtendimentoKm: 0).isValido, isFalse);
+      expect(perfilValido().copyWith(raioAtendimentoKm: 101).isValido, isFalse);
+      expect(perfilValido().copyWith(raioAtendimentoKm: 1).isValido, isTrue);
+      expect(perfilValido().copyWith(raioAtendimentoKm: 100).isValido, isTrue);
+    });
+
+    test(
+      'toMap/fromMap fazem ida e volta, e fromMap sem a chave usa o padrão',
+      () {
+        final perfil = perfilValido().copyWith(raioAtendimentoKm: 25);
+        expect(DriverProfile.fromMap(perfil.toMap()).raioAtendimentoKm, 25);
+        final semChave = perfil.toMap()..remove('raio_atendimento_km');
+        expect(
+          DriverProfile.fromMap(semChave).raioAtendimentoKm,
+          kRaioPadraoKm,
+        );
+      },
+    );
+
+    test('o raio entra na igualdade', () {
+      expect(
+        perfilValido().copyWith(raioAtendimentoKm: 20),
+        isNot(perfilValido()),
+      );
+    });
+  });
+
+  group('raio de atendimento — DriverPersonalData', () {
+    const base = DriverPersonalData(
+      nome: 'Fulano da Silva',
+      uf: 'SC',
+      cidade: 'Araranguá',
+    );
+
+    test('sem o parâmetro vale o padrão e é válido', () {
+      expect(base.raioAtendimentoKm, kRaioPadraoKm);
+      expect(base.isValido, isTrue);
+    });
+
+    test('raio fora de 1–100 não é válido', () {
+      const zero = DriverPersonalData(
+        nome: 'Fulano da Silva',
+        uf: 'SC',
+        cidade: 'Araranguá',
+        raioAtendimentoKm: 0,
+      );
+      const alto = DriverPersonalData(
+        nome: 'Fulano da Silva',
+        uf: 'SC',
+        cidade: 'Araranguá',
+        raioAtendimentoKm: 101,
+      );
+      expect(zero.isValido, isFalse);
+      expect(alto.isValido, isFalse);
+    });
+
+    test('toMap/fromMap fazem ida e volta; sem a chave usa o padrão', () {
+      const com = DriverPersonalData(
+        nome: 'Fulano da Silva',
+        uf: 'SC',
+        cidade: 'Araranguá',
+        raioAtendimentoKm: 33,
+      );
+      expect(DriverPersonalData.fromMap(com.toMap()), com);
+      final semChave = com.toMap()..remove('raio_atendimento_km');
+      expect(
+        DriverPersonalData.fromMap(semChave).raioAtendimentoKm,
+        kRaioPadraoKm,
+      );
+    });
+
+    test(
+      'o raio vai da etapa 1 ao perfil, e do perfil de volta ao progresso',
+      () {
+        final progresso = CadastroProgress.fromProfile(
+          perfilValido().copyWith(raioAtendimentoKm: 40),
+        );
+        expect(progresso.personal!.raioAtendimentoKm, 40);
+        expect(progresso.toProfile()!.raioAtendimentoKm, 40);
+      },
+    );
   });
 }

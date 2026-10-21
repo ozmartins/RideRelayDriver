@@ -1,0 +1,118 @@
+# Tarefas: 027-filtro-geografico-solicitacoes
+
+**Entrada**: `specs/027-filtro-geografico-solicitacoes/` (plan.md, spec.md, data-model.md, research.md, contracts/, quickstart.md)
+**Testes**: obrigatórios aqui — CLAUDE.md ("código que descarta mensagem exige teste junto, caso válido e inválido, sem rede nem
+relay real") e spec §FR-015. Cada tarefa de implementação traz o teste na mesma tarefa ou imediatamente antes.
+**Formato**: `- [ ] ID [P?] [US?] Descrição com caminho`. `[P]` = arquivos distintos, sem dependência de tarefa aberta.
+**Commits**: um por mudança lógica, em português do BR, direto na `master`, com o trailer `Co-Authored-By`; o commit da
+constituição e o do contrato vêm **antes** de qualquer código (Princípio IV, emenda 2.18.0). O `CLAUDE.md` é atualizado em
+commit separado, depois (T036).
+
+**Pré-requisito externo**: a contrapartida no app do passageiro (publicar as três tags `g` no `20001`) é feature própria em
+`../RideRelayPassenger` e não faz parte destas tarefas; os cenários 4–8 do quickstart (T034) dependem dela. Aqui só se
+replicam constituição, contrato e vetores (T001, T002, T006).
+
+**Histórias** (spec.md): US1 = receber só o que está no raio (P1, MVP); US2 = informar e alterar o raio (P1); US3 = referência
+fixa e ciclo online/offline (P2).
+
+## Fase 1: Preparação (gates anteriores ao código)
+
+- [ ] T001 Emendar a constituição para 2.18.0 em `.specify/memory/constitution.md` (texto proposto no plan.md, "Verificação da constituição"): a exceção do serviço em segundo plano passa a admitir que a interface envie ao serviço, só em memória, a posição de referência e o raio, e que o serviço leia a `origin` do `content` do `20001`; atualizar o Sync Impact Report. Replicar com texto espelho em `../RideRelayPassenger/.specify/memory/constitution.md` (o serviço dele não recebe posição) e conferir os corpos por `diff`. Commit separado.
+- [ ] T002 Aplicar a emenda 27 em `specs/002-nostr-relay-connection/contracts/nostr-events.md` seguindo `contracts/emenda-27-tag-g.md` (linha 27 no histórico, célula do `20001` na tabela, seção "Tag `g` do `20001`", "Forma da inscrição" em dois filtros para o motorista, regra de recepção 8). Replicar idêntico em `../RideRelayPassenger/specs/002-nostr-relay-connection/contracts/nostr-events.md` e conferir os dois arquivos por `diff`. Commit separado, antes do código.
+- [ ] T003 Confirmar que nenhuma dependência nova é necessária (geohash em casa, R1; `dart_nostr` já tem `additionalFilters`); nada a acrescentar ao `pubspec.yaml`.
+
+## Fase 2: Fundação (bloqueia todas as histórias)
+
+- [ ] T004 [P] Teste primeiro: `test/domain/geohash_test.dart` — âncoras independentes `encode(42.605, -5.603, 5) == 'ezs42'` e `encode(57.64911, 10.40744, 11) == 'u4pruydqqvj'`; prefixo (a precisão 4 e 3 são prefixos da 5); `neighbors` devolve 8 células distintas no meio do mapa, dá a volta no antimeridiano (lon ±180) e devolve menos de 8 sem vizinha além dos polos; `isValid` aceita comprimento 3–5 no alfabeto e recusa vazio, maiúscula, `a`/`i`/`l`/`o` (fora do alfabeto) e comprimento 2 ou 6; `encode` com lat/lon fora da faixa lança `ArgumentError`; alturas/larguras de célula batem com a tabela do research (R3) a 0,01 km.
+- [ ] T005 Implementar `lib/domain/geohash.dart` (data-model.md): `encode`, `neighbors`, `cellWithNeighbors`, `isValid`, `cellHeightKm`, `cellWidthKm`, `kPrecisoesDaTag = [5, 4, 3]`; Dart puro, sem importar terceiros. (depende de T004)
+- [ ] T006 [P] Vetor compartilhado: `tool/gen_geohash_vectors.dart` gera `test/fixtures/geohash_vectors.json` (pontos fixos — Araranguá, São Paulo, Chuí, Boa Vista, um ponto no antimeridiano e um perto do polo; para cada um: `encode` nas precisões 5/4/3 e as 9 células de cada precisão); teste `test/services/geohash_contract_vectors_test.dart` confere a implementação contra o arquivo. Copiar byte a byte para `../RideRelayPassenger/test/fixtures/geohash_vectors.json` e conferir por `diff`. (depende de T005)
+- [ ] T007 [P] Teste primeiro: `test/domain/driver_coverage_test.dart` — `precisionFor`: Araranguá (−28,9) com raio 1 e 4 ⇒ 5, raio 5, 10 e 19 ⇒ 4, raio 20 e 100 ⇒ 3; Boa Vista (2,8) e Chuí (−33,7) nos mesmos raios sem resultar em precisão que não cubra; latitude 55 com raio 100 ⇒ 3 (limite documentado); `around` calcula `cells` (≤ 9, sem repetição, todas na `precision`, contendo a célula da referência); raio 0 e 101 lançam `ArgumentError`; `withinRadius` inclusivo no limite (distância calculada por `metersBetween`) e falso poucos metros além; `matchesCells` aceita tag `g` de uma célula, recusa sem `g`, `g` fora das células, `g` mal formada, só tags de outra precisão; `evaluateRideRequest`: aceita origem dentro do raio com `g` na célula (inclusive origem a poucos metros da borda da célula), recusa por `semTagG`, `foraDasCelulas`, `origemIlegivel` (content sem `origin`, não JSON), `alemDoRaio` (g na célula e origem a mais de R km); `toJson`/`fromJson` ida e volta recalcula `precision`/`cells`; `fromJson` lança `FormatException` (campo faltando, tipo errado, raio fora de 1–100).
+- [ ] T008 Implementar `lib/domain/driver_coverage.dart` (data-model.md): `DriverCoverage` imutável com `around`, `precisionFor`, `matchesCells`, `withinRadius`, `evaluateRideRequest` (devolve o motivo ou aceita; única implementação da regra 8), `toJson`/`fromJson` estritos, igualdade por valor. Reutiliza `metersBetween` de `lib/domain/geo_distance.dart`. (depende de T005, T007)
+- [ ] T009 [P] Teste primeiro: ampliar `test/domain/ride_request_filter_test.dart` — `evaluate(event, state, coverage: …)` recusa `semReferencia` com cobertura nula e motorista online; recusa `foraDaCobertura` (sem `g`, `g` fora das células, além do raio); aceita dentro; a ordem é `offline → emCorrida → malformada → geográfica → pagamentoNaoAceito` (um evento malformado e fora do raio é `malformada`; um fora do raio e com pagamento não aceito é `foraDaCobertura`); cobertura não altera os demais casos já cobertos.
+- [ ] T010 Alterar `lib/domain/ride_request_filter.dart`: parâmetro `required DriverCoverage? coverage` em `evaluate`, `RideRequestRefusal.semReferencia` e `foraDaCobertura`, passo geográfico entre `malformada` e `pagamentoNaoAceito` chamando `coverage.evaluateRideRequest`. Atualizar os chamadores existentes para compilarem (passam `null` até T020/T022). (depende de T008, T009)
+- [ ] T011 [P] Helper de teste: em `test/support/` (novo `ride_request_fixtures.dart`, ou o helper de solicitação assinada já existente em `signed_payload.dart`) gerar, por padrão, as três tags `g` (`kPrecisoesDaTag`) a partir da `origin`, com opção de omiti-las ou forçar valores; ajustar os testes existentes que fazem o motorista online receber solicitação (`test/screens/map_screen_test.dart`, `test/services/event_feed_test.dart`, `test/services/background/…`) para usar o helper e uma cobertura criada com `DriverCoverage.around` na posição simulada do teste. Nenhum teste existente pode ser desligado ou ignorado.
+
+- [ ] T024 [P] Teste primeiro: ampliar `test/domain/driver_profile_test.dart` — `parseRaioKm`: `'10'`, `' 7 '`, `'1'`, `'100'` válidos; `''`, `'abc'`, `'0'`, `'-5'`, `'101'`, `'2,5'`, `'2.5'` ⇒ `null`; `DriverPersonalData` e `DriverProfile` com `raioAtendimentoKm` fora de 1–100 não são válidos; `toMap`/`fromMap` ida e volta; `fromMap` sem a chave usa `kRaioPadraoKm`; construtores existentes (sem o parâmetro) continuam compilando e valendo 10.
+- [ ] T025 Alterar `lib/domain/driver_profile.dart` (data-model.md): constantes `kRaioMinKm`, `kRaioMaxKm`, `kRaioPadraoKm`; `DriverProfile.raioAtendimentoKm` (padrão no construtor, `isValido`, `copyWith`, `toMap`, `fromMap`), `parseRaioKm`; `DriverPersonalData.raioAtendimentoKm` (`isValido`, `toMap`, `fromMap`, `==`, `hashCode`); `lib/domain/cadastro_progress.dart` leva o raio da etapa 1 ao `toProfile()`. (depende de T024)
+
+**Ponto de controle**: `flutter analyze` e `flutter test` limpos antes das histórias.
+
+## Fase 3: História 1 — Receber só o que está no raio (P1) 🎯 MVP
+
+**Meta**: com o motorista online e raio X, solicitação de São Paulo não chega à tela, à notificação nem à lista de eventos; a de menos de X km chega; o relay que ignora `#g` não muda o resultado.
+**Teste independente**: com cobertura fixa e raio conhecido, entregar origem próxima, no limite, logo além, na borda de célula, em outra cidade, sem `g` e com `g` incoerente.
+
+- [ ] T012 [P] [US1] Teste primeiro: ampliar `test/services/event_feed_test.dart` — com `coverage: () => cobertura`: `20001` fora do raio, sem `g` e com `g` fora das células **não** entram em `events` e incrementam `discardedOutOfCoverageCount`; dentro entra; o descarte vem **antes** da deduplicação (o mesmo evento fora do raio, reentregue depois de a cobertura mudar para uma que o inclui, entra, não é tratado como repetido); assinatura inválida continua descartada primeiro; cobertura nula ou parâmetro ausente não faz recorte geográfico; outros kinds não são afetados.
+- [ ] T013 [US1] Alterar `lib/services/event_feed.dart`: parâmetro `DriverCoverage? Function()? coverage`; para `20001` com cobertura não nula, descartar com `evaluateRideRequest` depois do marcador e antes da deduplicação; contador `discardedOutOfCoverageCount`. (depende de T008, T012)
+- [ ] T014 [P] [US1] Teste primeiro: `test/services/relay_service_test.dart` (ampliar) e dublê `test/support/fake_relay_gateway.dart` — `applyCoverage(c)` guarda `coverage` e chama `gateway.setRideRequestCells(c.cells)`; `applyCoverage(null)` chama `setRideRequestCells(null)`; ao conectar um relay com cobertura vigente o gateway recebe as células; o dublê registra as chamadas.
+- [ ] T015 [US1] Alterar `lib/services/relay_gateway.dart` (`subscribe({kinds, rideRequestCells})`, `setRideRequestCells`), `lib/services/relay_connection.dart` (`coverage`, `applyCoverage`) e `lib/services/relay_service.dart` (guarda `_coverage`, repassa as células). Atualizar o dublê `FakeRelayGateway`. (depende de T008, T014)
+- [ ] T016 [US1] Alterar `lib/services/nostr_relay_gateway.dart`: monta dois `NostrFilter` — kinds sem `20001` (`t`, `limit: 50`) sempre; `20001` (`t`, `additionalFilters: {'#g': cells}`, `limit: 50`) só com células não nulas; `setRideRequestCells` refaz a inscrição de cada relay conectado (fecha a anterior pelo `subscriptionId` fixado na `NostrRequest` e abre a nova) e `_startSubscription` usa as células vigentes. Sem teste de rede: a montagem dos filtros fica numa função estática pura (`buildFilters(kinds, cells)`) coberta em `test/services/nostr_relay_gateway_filters_test.dart` (sem células ⇒ um filtro sem `20001`; com células ⇒ dois filtros, `#g` com ≤ 9 valores; `#t` em ambos). (depende de T015)
+- [ ] T017 [P] [US1] Teste primeiro: `test/services/remote_relay_connection_test.dart` (ampliar) e `test/services/background/service_messages_test.dart` — `ServiceSetCoverage` ida e volta (com cobertura e com `null`), `fromJson` estrito; `applyCoverage` em `RemoteRelayConnection` guarda `coverage` e envia a mensagem pelo canal; recebendo `ServiceHelloAck` (serviço reiniciado) reenvia a cobertura vigente.
+- [ ] T018 [US1] Acrescentar `ServiceSetCoverage` (`type: 'coverage'`) em `lib/services/background/service_messages.dart` e `applyCoverage` em `lib/services/remote_relay_connection.dart` (envio, guarda local, reenvio no `ServiceHelloAck`). (depende de T008, T015, T017)
+- [ ] T019 [P] [US1] Teste primeiro: ampliar o teste do `RelayHostCore` em `test/services/background/` (dublês `fake_message_channel`, `fake_ride_request_notifier`, sem rede) — `ServiceSetCoverage` chama `relays.applyCoverage`; `20001` fora do raio, sem `g` ou fora das células **não** é repassado à interface nem notifica; dentro é repassado e notifica (app em segundo plano); o descarte geográfico vem antes da deduplicação; sem cobertura o `RideRequestFilter` recusa (`semReferencia`) e nada notifica; cobertura **não** é gravada em `ServiceStateStore` (inspecionar o dublê após `ServiceSetCoverage` e após `ServiceStateUpdate`) nem aparece em `notifier` (texto/payload) nem em qualquer mensagem enviada ao canal além do eco já previsto (SC-006 / FR-004: nenhuma coordenada de referência nem raio fora do `ServiceSetCoverage` recebido); `20003` e demais kinds não sofrem recorte.
+- [ ] T020 [US1] Alterar `lib/services/background/relay_host_core.dart`: guarda `_coverage` só em memória; em `ServiceSetCoverage` chama `relays.applyCoverage` e, se necessário, atualiza o estado interno; em `_onIncoming`, para `20001` com cobertura, aplicar `evaluateRideRequest` **antes** da deduplicação e antes de repassar; passar `_coverage` a `RideRequestFilter.evaluate` em `_onRideRequest`. Remover o `null` provisório de T010 neste ponto. (depende de T010, T018, T019)
+- [ ] T021 [US1] Alterar `lib/main.dart`: `EventFeed(coverage: () => _relayService.coverage, …)`. (depende de T013, T015)
+- [ ] T022 [US1] Alterar `lib/screens/map_screen.dart` (mínimo para a história funcionar): campo `_cobertura`; ao ficar online (`_alternarStatus`) criar `DriverCoverage.around(posição, _perfil.raioAtendimentoKm ?? kRaioPadraoKm)` e chamar `widget.relayService.applyCoverage`; ao ficar offline chamar `applyCoverage(null)`; passar `_cobertura` a `RideRequestFilter.evaluate` em `_processarSolicitacaoRecebida`. (O raio vem de `_perfil.raioAtendimentoKm`, criado em T025; sem a tela de T029, todo cadastro vale o padrão.) (depende de T008, T010, T015, T025)
+- [ ] T023 [US1] Teste de tela: ampliar `test/screens/map_screen_test.dart` — online em Araranguá com raio padrão: solicitação a ~3 km abre a modal, a de São Paulo não abre e não aparece em `eventFeed.events`; solicitação sem `g` não abre; `g` incoerente não abre; offline nada abre; o dublê do gateway entrega **todos** os eventos, ignorando `#g` (SC-003); depois de ficar online e receber solicitações, nenhum evento publicado pelo app (`FakeRelayGateway.published`) nem o `KeyValueStore` em memória contém a latitude/longitude da referência nem o raio (SC-006). Dublês de gateway e de localização, sem rede. (depende de T011, T021, T022)
+
+**Ponto de controle**: US1 funciona de ponta a ponta com o raio padrão; `flutter analyze` e `flutter test` limpos.
+
+## Fase 4: História 2 — Informar e alterar o raio de atendimento (P1)
+
+> T024 e T025 (campo `raioAtendimentoKm`, constantes e `parseRaioKm`) ficam na Fase 2, porque T022 (US1) já usa o raio padrão.
+
+**Meta**: raio de 1–100 km no cadastro inicial e na edição; motorista já cadastrado ganha 10 km sem refazer o wizard.
+**Teste independente**: preencher com raio válido e inválidos, salvar, reabrir, editar; atualizar de uma instalação anterior.
+
+- [ ] T026 [P] [US2] Teste primeiro: ampliar `test/services/cadastro_store_test.dart` (contra o dublê `fake_cadastro_store`) — o raio salvo na etapa 1 volta em `loadProgress`/`load`; raio persistido inválido ⇒ `CorruptedDriverProfile`; e o teste de migração: `SqfliteCadastroStore` não é testado com SQLite real aqui — a migração 5 → 6 (`ALTER TABLE … DEFAULT 10`) é verificada no cenário 6 do quickstart e a SQL fica numa constante (`SqfliteCadastroStore.sqlAdicionarRaio`) revisada no PR.
+- [ ] T027 [US2] Alterar `lib/services/sqflite_cadastro_store.dart`: versão do banco 5 → 6; `onCreate` cria `driver_personal` com `raio_atendimento_km INTEGER NOT NULL DEFAULT 10`; `onUpgrade` (`oldVersion < 6`) executa `ALTER TABLE driver_personal ADD COLUMN raio_atendimento_km INTEGER NOT NULL DEFAULT 10` (sem apagar nada; a regra `oldVersion < 5` existente continua antes). (depende de T025, T026)
+- [ ] T028 [P] [US2] Teste primeiro: ampliar `test/screens/cadastro_screen_test.dart` — a etapa 1 mostra "Raio de atendimento (km)" já com `10`; `''`, `0`, `101`, `abc`, `2,5` impedem avançar e exibem a mensagem com os limites; `1` e `100` passam; o valor vai em `DriverPersonalData.raioAtendimentoKm`; editar com cadastro completo traz o raio salvo; com um parâmetro `motoristaOnline: true` a tela mostra o aviso "O novo raio vale a partir da próxima vez que você ficar online" ao salvar.
+- [ ] T029 [US2] Alterar `lib/screens/cadastro_screen.dart`: campo numérico "Raio de atendimento (km)" na etapa 1 (componente e estilo dos demais, `screens/identidade_visual.dart`), validação via `DriverProfile.parseRaioKm`, parâmetro opcional `ValueListenable<bool> motoristaOnline` e o aviso; `lib/main.dart` cria um `ValueNotifier<bool>` (`_motoristaOnline`) em `_CorridasDriverAppState`, passa-o ao `MapScreen` (novo parâmetro opcional `onlineNotifier`, que o atualiza sempre que `_status` muda, inclusive no offline forçado) e a `MoreScreen` → `CadastroScreen` (`lib/screens/more_screen.dart` apenas repassa); testes não passam o notifier (padrão: offline, sem aviso); `lib/screens/map_screen.dart` passa a usar o raio do cadastro real em T022 (`_perfil.raioAtendimentoKm`) e aceita `driverProfile` atualizado sem tocar na cobertura já criada. (depende de T022, T025, T028)
+
+**Ponto de controle**: US1 + US2 juntas; `flutter analyze` e `flutter test` limpos.
+
+## Fase 5: História 3 — Referência fixa e ciclo online/offline (P2)
+
+**Meta**: a referência é a posição do momento de ficar online, fixa até ficar offline; GPS perdido força offline e zera a cobertura; retomada reavalia o que chegou antes da primeira posição; raio alterado online só vale na próxima vez.
+**Teste independente**: simular deslocamento, offline/online, perda de GPS, retomada e mudança de raio online.
+
+- [ ] T030 [P] [US3] Teste primeiro: ampliar `test/screens/map_screen_test.dart` — (a) online no ponto A, posição simulada 30 km adiante: solicitação perto de A ainda chega, perto do novo ponto não; (b) offline e online de novo no novo ponto: agora a segunda chega e a primeira não; (c) perda de localização online força offline, `applyCoverage(null)` é chamado, o aviso de sempre aparece e nada é aceito; (d) tentar ficar online sem posição continua recusado com o aviso existente e não cria cobertura nem inscrição de `20001`; (e) raio alterado no cadastro com o motorista online não muda a cobertura em uso (solicitação a 12 km, raio antigo 10, não chega) e vale após offline/online; (f) retomada (`serviceController.resumeOnline` verdadeiro, sem posição): solicitação que chega antes da primeira posição é estacionada, e ao chegar a primeira posição e o cadastro é reavaliada contra a nova cobertura — dentro do raio abre a modal, fora some; sem posição em 20 s as estacionadas somem e a cobertura permanece nula.
+- [ ] T031 [US3] Alterar `lib/screens/map_screen.dart`: centralizar `_definirCobertura(DriverCoverage?)` (atualiza `_cobertura` e chama `applyCoverage`); anular a cobertura em todo caminho que fica offline (toque, perda de localização no listener de posição, desistência da retomada); na retomada criar a cobertura quando houver posição válida **e** `_perfil` carregado (`_aoReceberPosicao` e `_carregarPrecoPadrao`); estacionar o evento recusado com `semReferencia` durante `_retomandoOnline`/`_aguardandoServico` e reavaliá-lo contra a nova cobertura em `_liberarEstacionadas` (guardar o `NostrEvent` bruto em vez do pedido já decodificado). Nenhuma atualização da cobertura por mudança de posição. (depende de T022, T029, T030)
+- [ ] T032 [P] [US3] Teste primeiro: `test/services/background/relay_host_core_test.dart` (ampliar) — após `ServiceSetCoverage(null)` (offline), nenhum `20001` é aceito nem notificado; serviço reiniciado com estado `online` persistido e **sem** cobertura não notifica `20001` até chegar `ServiceSetCoverage`; interface que reaparece (`ServiceHello`) com cobertura vigente no serviço não a perde.
+- [ ] T033 [US3] Ajustar `lib/services/background/relay_host_core.dart` se T032 expuser lacuna (cobertura preservada no `ServiceHello`, nula após `dispose`/reinício); nenhuma gravação da cobertura em `ServiceStateStore`. (depende de T020, T032)
+
+**Ponto de controle**: as três histórias; `flutter analyze` e `flutter test` limpos.
+
+## Fase 6: Acabamento e transversais
+
+- [ ] T034 [P] Sonda de relay: `tool/probe_geohash_filter.dart` (assina e publica duas solicitações de teste — uma dentro da célula, uma fora —, abre a inscrição com `#g`, troca a inscrição e registra, por relay da lista padrão, se a de fora chegou, se a de dentro chegou e se o `CLOSE` foi aceito); executar o cenário 3 do quickstart, registrar o resultado **com data e método** no `research.md` (R7) e relatar relays que ignoram `#g`. Executar também os cenários 4–9 do quickstart com os dois apps; os que falharem são relatados, não omitidos.
+- [ ] T035 [P] Verificação de não vazamento da posição e do raio (quickstart, cenário 9): `adb logcat -s flutter` e captura de rede durante os cenários 4–8 — nenhuma coordenada de referência, raio ou célula fora do `REQ`; revisão do diff buscando `debugPrint`/`print` que as exibam; resultado registrado no PR.
+- [ ] T036 Atualizar o `CLAUDE.md` (seção Arquitetura e "Regras de domínio"): filtro geográfico, `DriverCoverage` só em memória, `ServiceSetCoverage`, conferência antes da deduplicação, emenda 27 e vetores de geohash. **Commit separado**, depois da mudança que descreve.
+- [ ] T037 Rodar `dart format lib test tool`, `flutter analyze` (sem apontamentos) e `flutter test` (inteira, sem teste ignorado); conferir que `test/fixtures/geohash_vectors.json` e o contrato são idênticos aos do passageiro (`diff`).
+
+## Dependências e ordem de execução
+
+- **Fase 1** (T001–T003) bloqueia todo código; T001 e T002 são commits próprios, nessa ordem de preferência.
+- **Fase 2** depende da 1; T004→T005→(T006, T008); T007→T008; T009→T010 (depende de T008); T011 pode andar em paralelo com T004–T010, mas só é concluída depois de T008 e T010.
+- **US1** (Fase 3) depende da Fase 2; T012→T013; T014→T015→T016; T017→T018 (depende de T015); T019→T020 (depende de T018); T021 depende de T013 e T015; T022 depende de T015; T023 fecha a história.
+- **US2** (Fase 4): o domínio (T024–T025) está na Fase 2; T026–T027 podem andar em paralelo com a US1; T029 usa o `MapScreen` de T022.
+- **US3** (Fase 5) depende de US1 (T022) e US2 (T029); T032–T033 dependem de T020.
+- **Fase 6** por último; T036 só depois de o código estar concluído.
+
+## Oportunidades de paralelismo
+
+- Fundação: T004, T007, T009, T011, T024 (arquivos distintos); depois T006 com T008 e T010.
+- US1: T012, T014, T017, T019 (testes) em paralelo; as implementações seguem a ordem das dependências.
+- US2: T026, T028 (testes) em paralelo.
+- US3: T030 e T032 em paralelo.
+- Acabamento: T034 e T035.
+
+## Estratégia de implementação
+
+1. **MVP = Fase 1 + Fase 2 + US1** (raio padrão de 10 km, cobertura criada ao ficar online): já resolve o problema do pedido
+   (ruído, banda, `limit: 50` ocupado por pedidos distantes) e é testável sem tocar no cadastro.
+2. **US2** acrescenta o controle do raio e a migração do banco.
+3. **US3** fecha os casos de borda do ciclo de vida (GPS perdido, retomada, raio alterado online).
+4. Antes de dar a feature por concluída: gates da constituição (analyze, test, quickstart executado com falhas relatadas,
+   commits no padrão) e confirmação do autor dos dois pontos abertos do plan.md (tag `g` em três precisões; limite do
+   processo morto).

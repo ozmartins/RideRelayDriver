@@ -120,6 +120,14 @@ class NostrEvent {
   /// de eventos, feature 020).
   static const int kindRideCancelledByPassenger = 20013;
 
+  /// Kind do recibo de avaliação: o avaliador o publica ao avaliado ao fim da
+  /// corrida, nos dois sentidos (emenda 25 do contrato de eventos, feature 026).
+  static const int kindReceipt = 20014;
+
+  /// Kind da confirmação de recibo, publicado pelo avaliado ao avaliador para
+  /// que ele pare de reenviar (emenda 25 do contrato de eventos, feature 026).
+  static const int kindReceiptAck = 20015;
+
   /// O valor da primeira tag `["e", "<valor>"]`, ou `null` se ausente —
   /// referência a outro evento (ex.: o orçamento respondido por uma
   /// confirmação). Mesmo padrão já usado pelo `NostrEvent` do passageiro;

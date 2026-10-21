@@ -82,6 +82,12 @@ da constituição e o do contrato vêm **antes** de qualquer código (Princípio
 - [x] T035 Executar os cenários 4–8 do `quickstart.md` em dois emuladores, medir de fato o tamanho do `content` do `20002` com 5 recibos (cenário 7, método descrito) e registrar tudo — inclusive o que falhar — em `quickstart.md` "Resultados".
 - [x] T036 Atualizar `CLAUDE.md` (novos serviços, kinds consumidos, `receipts.db`) em **commit separado**, depois dos commits das mudanças que ele descreve.
 
+## Fase 8: Emenda 26 — corrida conhecida do recibo recebido
+
+- [x] T037 Emenda 26 em `specs/002-nostr-relay-connection/contracts/nostr-events.md` e em `contracts/reputacao-recibos.md` (1.5, 1.8, 1.9, linha 26), replicada no passageiro, em commit anterior ao código (Princípio IV).
+- [x] T038 `ReceiptStore.counterpartOf(quoteId)` (SQLite e dublê) devolvendo o passageiro registrado por `saveDeclared`, e a conferência em `ReceiptService.onReceiptEvent` (FR-023), com testes: estranho com corrida inventada, corrida de outra contraparte, recibo que não pode se autodeclarar conhecido, e os casos válidos de antes.
+- [x] T039 Teste de tela: um 20014 válido de estranho com corrida inventada não grava nem confirma (`test/screens/map_screen_test.dart`).
+
 ## Dependências e ordem
 
 - Fase 1 (T001–T002) bloqueia todo código; commits próprios, antes de qualquer outro.

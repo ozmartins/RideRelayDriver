@@ -137,4 +137,4 @@ exista nem que tenha sido do próprio avaliado: qualquer pessoa que conheça a c
 recibo de nota 1 entrou em `corridas`, `avaliacoes` e `media` **declaradas** pelo motorista (de 5,00 para ≈ 3,67 nas contas da agregação) e em `seq_proximo`. A janela
 apresentada ficaria correta neste caso só porque os recibos reais são mais recentes por `criado_em`. Os "Limites conhecidos" (1.9) não citam isso. Mitigação possível, que
 exige emenda do contrato nas duas apps: só aceitar recibo cujo `guid_corrida` seja um orçamento que o próprio receptor enviou ou recebeu e foi aceito (o motorista já guarda
-os orçamentos enviados; o passageiro, os recebidos). Não implementei, por mudar o contrato.
+os orçamentos enviados; o passageiro, os recebidos). Corrigido pela **emenda 26** (contrato 1.8: só grava recibo de corrida conhecida com o avaliador), implementada nos dois apps; o teste automatizado reproduz o caso do estranho com corrida inventada. A mitigação não impede que quem negociou com o avaliado lhe emita recibo de corrida que não houve (1.9).

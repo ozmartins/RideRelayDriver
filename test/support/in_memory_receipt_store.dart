@@ -12,6 +12,7 @@ class InMemoryReceiptStore implements ReceiptStore {
   final Map<String, Receipt> _issued = {};
   final Set<String> _pending = {};
   final Map<String, Reputation> _declared = {};
+  final Map<String, String> _counterparts = {};
 
   /// Ordem das operações de escrita, para testes que conferem "grava antes de
   /// publicar".
@@ -76,9 +77,13 @@ class InMemoryReceiptStore implements ReceiptStore {
     Reputation reputation,
   ) async {
     _declared.putIfAbsent(quoteId, () => reputation);
+    _counterparts.putIfAbsent(quoteId, () => avaliado);
     log.add('saveDeclared');
   }
 
   @override
   Future<Reputation?> declaredFor(String quoteId) async => _declared[quoteId];
+
+  @override
+  Future<String?> counterpartOf(String quoteId) async => _counterparts[quoteId];
 }

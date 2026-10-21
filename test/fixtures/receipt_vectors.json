@@ -1,0 +1,133 @@
+{
+  "descricao": "Vetores do recibo de reputação (emenda 25). O verificador recebe o recibo e o autor do evento e decide se vale. Idêntico nos dois apps.",
+  "chaves_publicas_de_teste": {
+    "avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+    "avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+    "outro": "3c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1"
+  },
+  "vetores": [
+    {
+      "nome": "valido_seq0_sem_nota",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000001",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "criado_em": 1760000000,
+        "seq": 0,
+        "id_recibo": "b80eb09eaad7ed07e5d6f492bf6107d2c2e310277d488bd82cd25bc27abcebf5",
+        "assinatura": "bdd6c64169709f84f5289ae5b2b046f1dd2ee1082ea8dd2d38c437dfa3adb7cd258be2672f643ee89563654a627a2356176c226274b36b00a1114fe7f16ca9ed"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000001|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|-|1760000000|0|-",
+      "valido": true
+    },
+    {
+      "nome": "valido_com_nota_e_hash_anterior",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000002",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "nota": 5,
+        "criado_em": 1760000000,
+        "seq": 1,
+        "hash_anterior": "b80eb09eaad7ed07e5d6f492bf6107d2c2e310277d488bd82cd25bc27abcebf5",
+        "id_recibo": "cb0a03965ecf5cbf997d807d5ef0f4a0184ea3027d3362a719828f2df71a140e",
+        "assinatura": "2418cb6dc9b5fb5d8bdba76f4b7b8c3b0b0885b7979a5b105ced5a52ff5c86a116d93895e326e045e4d02c47dda02429d41ac7aa069209f77d8775e5c549b3c0"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000002|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|5|1760000000|1|b80eb09eaad7ed07e5d6f492bf6107d2c2e310277d488bd82cd25bc27abcebf5",
+      "valido": true
+    },
+    {
+      "nome": "id_recibo_adulterado",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000002",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "nota": 4,
+        "criado_em": 1760000000,
+        "seq": 1,
+        "hash_anterior": "b80eb09eaad7ed07e5d6f492bf6107d2c2e310277d488bd82cd25bc27abcebf5",
+        "id_recibo": "cb0a03965ecf5cbf997d807d5ef0f4a0184ea3027d3362a719828f2df71a140e",
+        "assinatura": "2418cb6dc9b5fb5d8bdba76f4b7b8c3b0b0885b7979a5b105ced5a52ff5c86a116d93895e326e045e4d02c47dda02429d41ac7aa069209f77d8775e5c549b3c0"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000002|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|4|1760000000|1|b80eb09eaad7ed07e5d6f492bf6107d2c2e310277d488bd82cd25bc27abcebf5",
+      "valido": false,
+      "motivo": "a"
+    },
+    {
+      "nome": "assinatura_de_outra_chave",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000003",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "criado_em": 1760000000,
+        "seq": 0,
+        "id_recibo": "a8dd0b64818da2234a1df136122ffdf94789f951e161434dbeae1a62689a99cd",
+        "assinatura": "d1744c051b222b0e6f9d844d8b3d99c71a684cd77f1f27171c68ff083b1ffaeaec53ca878562772eb40d863e1d920350d7acfe3bd7f0216ad24bc12cfeb38e16"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000003|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|-|1760000000|0|-",
+      "valido": false,
+      "motivo": "b"
+    },
+    {
+      "nome": "versao_2",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 2,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000004",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "criado_em": 1760000000,
+        "seq": 0,
+        "id_recibo": "9adb6e5e4534a1df7ef383eef3921d6eca32535c3920832b283320114f31e822",
+        "assinatura": "bb7fdcd927f672f6617075092b6fdb28dbdf9b4e893b204f074ef4a3e99066cc67ecb1515408f029d0733a987e415002d8555cf20ea65dd2858a32820e90de0e"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000004|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|-|1760000000|0|-",
+      "valido": false,
+      "motivo": "d"
+    },
+    {
+      "nome": "nota_6",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000005",
+        "pubkey_avaliador": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "nota": 6,
+        "criado_em": 1760000000,
+        "seq": 0,
+        "id_recibo": "9faf4ef2ccb04f813b12a4c8c6e6a53267d240e97262cf3d5e71eebcab6264a2",
+        "assinatura": "17c26f455269ee662f0aed73b311dd214185f99c57cfc5ee4995b6cd8000cb2c9d44327320e4517e32832a5100bac056c6a64aa3af8a614875a5db2d67510673"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000005|4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|6|1760000000|0|-",
+      "valido": false,
+      "motivo": "d"
+    },
+    {
+      "nome": "avaliador_igual_ao_avaliado",
+      "autor_do_evento": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+      "recibo": {
+        "v": 1,
+        "guid_corrida": "0000000000000000000000000000000000000000000000000000000000000006",
+        "pubkey_avaliador": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "pubkey_avaliado": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "nota": 5,
+        "criado_em": 1760000000,
+        "seq": 0,
+        "id_recibo": "8956555b763db1499f809b349e7e8016abca7d90056e64315cbbd4887c13f59a",
+        "assinatura": "d3a082c01c14217c7ab10fce72e4dde850fd48839664646986a6c2fe5f18774b677bcd954e7efc9a3bb046f3ab18eba728879aba0166fc1508d6172c80b81795"
+      },
+      "canonico": "tcc-recibo-v1|0000000000000000000000000000000000000000000000000000000000000006|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27|5|1760000000|0|-",
+      "valido": false,
+      "motivo": "g"
+    }
+  ]
+}

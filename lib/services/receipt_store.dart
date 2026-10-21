@@ -31,6 +31,10 @@ abstract class ReceiptStore {
   /// publicar (1.7 passo 4). No-op se já existe recibo para a corrida.
   Future<void> saveIssued(Receipt receipt);
 
+  /// O recibo emitido para [guidCorrida], confirmado ou não; `null` se a
+  /// corrida ainda não gerou recibo.
+  Future<Receipt?> issuedFor(String guidCorrida);
+
   /// Recibos emitidos ainda sem confirmação.
   Future<List<Receipt>> pendingIssued();
 
@@ -149,6 +153,17 @@ class SqfliteReceiptStore implements ReceiptStore {
       'json': jsonEncode(receipt.toJson()),
       'pendente': 1,
     }, conflictAlgorithm: sqflite.ConflictAlgorithm.ignore);
+  }
+
+  @override
+  Future<Receipt?> issuedFor(String guidCorrida) async {
+    final db = await _open();
+    final rows = await db.query(
+      'recibos_emitidos',
+      where: 'guid_corrida = ?',
+      whereArgs: [guidCorrida],
+    );
+    return rows.isEmpty ? null : _parse(rows.first['json']);
   }
 
   @override

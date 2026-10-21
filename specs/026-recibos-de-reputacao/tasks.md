@@ -38,10 +38,10 @@ da constituição e o do contrato vêm **antes** de qualquer código (Princípio
 **Meta**: a solicitação mostra reputação verificada × declarada, "inconsistente", "N recibos não apresentados" e "sem histórico".
 **Teste independente**: entregar solicitações com `reputacao` válida, com recibo adulterado, ausente e malformada e observar cada uma.
 
-- [ ] T017 [P] [US1] Teste primeiro em `test/domain/ride_request_received_test.dart` (ampliar): `reputacao` presente é lida; ausente → `null`; malformada (tipo errado, recibo sem campo) → `null` **sem** invalidar a solicitação; campo obrigatório faltando continua lançando `FormatException`.
-- [ ] T018 [US1] Implementar em `lib/domain/ride_request_received.dart`: `Reputation? reputation` lido em tentativa própria dentro de `fromNostrEvent`. (depende de T006, T017)
-- [ ] T019 [US1] Teste de widget em `test/screens/` (arquivo existente da modal/lista de solicitações, ou novo `ride_request_reputation_test.dart`): média e contagem verificadas em destaque e declaradas em texto menor; recibo inválido descartado sinalizado; reputação inconsistente destacada; lacuna "N recibos não apresentados"; sem reputação → "sem histórico".
-- [ ] T020 [US1] Exibir `ReputationView` do passageiro (`ReputationVerifier.verify(rep, authorPubkey: passengerPubkey)`) na modal de solicitação recebida em `lib/screens/` (localizar com `grep RideRequestReceived lib/screens`), seguindo `lib/screens/identidade_visual.dart`; widget separado e reutilizável (ex.: `lib/screens/reputation_summary.dart`). Nenhum tipo de terceiros. (depende de T011, T018, T019)
+- [x] T017 [P] [US1] Teste primeiro em `test/domain/ride_request_received_test.dart` (ampliar): `reputacao` presente é lida; ausente → `null`; malformada (tipo errado, recibo sem campo) → `null` **sem** invalidar a solicitação; campo obrigatório faltando continua lançando `FormatException`.
+- [x] T018 [US1] Implementar em `lib/domain/ride_request_received.dart`: `Reputation? reputation` lido em tentativa própria dentro de `fromNostrEvent`. (depende de T006, T017)
+- [x] T019 [US1] Teste de widget em `test/screens/` (arquivo existente da modal/lista de solicitações, ou novo `ride_request_reputation_test.dart`): média e contagem verificadas em destaque e declaradas em texto menor; recibo inválido descartado sinalizado; reputação inconsistente destacada; lacuna "N recibos não apresentados"; sem reputação → "sem histórico".
+- [x] T020 [US1] Exibir `ReputationView` do passageiro (`ReputationVerifier.verify(rep, authorPubkey: passengerPubkey)`) na modal de solicitação recebida em `lib/screens/` (localizar com `grep RideRequestReceived lib/screens`), seguindo `lib/screens/identidade_visual.dart`; widget separado e reutilizável (ex.: `lib/screens/reputation_summary.dart`). Nenhum tipo de terceiros. (depende de T011, T018, T019)
 
 **Ponto de controle**: US1 demonstrável sozinha (a reputação chega e aparece), sem emissão nem recepção.
 

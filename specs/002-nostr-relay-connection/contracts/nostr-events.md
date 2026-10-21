@@ -32,6 +32,7 @@ idêntica nos dois lados, na mesma alteração**.
 | 22 | 2026-10-12 | Nenhum formato muda. O raio em que o `kind: 20009` é publicado sobe de 5 m para **30 m** do destino da corrida ativa; o resto da regra (uma única vez por corrida, só em "Em corrida") não muda | Mesmo achado da emenda 21, agora na chegada ao destino: em teste ponta a ponta nos dois emuladores, ambos pareciam no destino, mas o `20009` não saiu e o passageiro não viu a modal de chegada; 5 m fica abaixo do erro típico de GPS real (5–15 m) e dos marcadores de 44 px, que cobrem ~45 m no zoom 17. Definido pelo motorista; o passageiro não muda de código — só a descrição do contrato, na mesma alteração (Princípio IV) |
 | 23 | 2026-10-13 | Nenhum formato muda. O raio em que o `kind: 20009` é publicado sobe de 30 m para **1 km** do destino da corrida ativa; o resto da regra (uma única vez por corrida, só em "Em corrida") não muda | A busca de endereço (Photon) nem sempre localiza o destino com precisão, e o ponto gravado pode ficar a centenas de metros do local real; com 30 m a chegada podia nunca ser avisada. Pedido do autor. Definido pelo motorista; o passageiro não muda de código — só a descrição do contrato, na mesma alteração (Princípio IV) |
 | 24 | 2026-10-13 | Nenhum formato muda. A confirmação de destino (`kind: 20010`) deixa de ser pedida por uma modal aberta ao chegar o `kind: 20009` e passa a ser um **botão** no mapa do passageiro, exibido em "Em corrida" enquanto a posição dele está a até 1 km do destino pedido; o passageiro deixa de reagir ao `20009`, que o motorista continua publicando | Pedido do autor: a confirmação deve depender de o app estar no raio do destino, e não de uma modal. Definido pelo passageiro; o motorista não muda de código — só a descrição do contrato, na mesma alteração (Princípio IV) |
+| 25 | 2026-10-20 | Define `kind: 20014` para "Recibo de avaliação" e `kind: 20015` para "Confirmação de recibo" (seções *Conteúdo do kind 20014* e *20015*) e o campo opcional `reputacao` em `20001` (em claro) e `20002` (cifrado); as duas apps passam a se inscrever em `20014` e `20015` (Forma da inscrição atualizada); os dois kinds entram na cifragem da emenda 17 ("`20002` a `20015`") e na regra de recepção 7; nova seção *Reputação por recibos* (recibo, cadeia por avaliado, verificação, emissão, recepção e limites conhecidos) | Pedido do autor — reputação sem backend e sem guardar avaliações em relays: cada corrida concluída gera um recibo assinado pelo avaliador, entregue ao avaliado, que apresenta os mais recentes a quem for avaliá-lo. Definido pela feature 026 do motorista e replicado na feature 027 do passageiro, na mesma alteração (Princípio IV); constituição 2.17.0 (exceção do `20001`). Kinds novos e campo opcional novo: nenhum formato existente muda |
 
 ## Escopo desta feature
 
@@ -51,7 +52,7 @@ Todo evento segue o envelope padrão do protocolo Nostr:
 | `created_at` | relógio local do autor | Declarado pelo autor; **não confiável** como ordenação absoluta |
 | `kind` | tabela abaixo | Define a semântica do evento |
 | `tags` | por kind | Em todo evento do protótipo, a tag de marcador `["t", "tcc-ufsc-caronas"]` (mais as tags próprias de cada kind) |
-| `content` | por kind | Kind `20001`: texto simples. Kinds `20002`–`20013` (emendas 17 e 19): payload NIP-44 v2 cifrado ao destinatário — ver *Cifragem do `content`* |
+| `content` | por kind | Kind `20001`: texto simples. Kinds `20002`–`20015` (emendas 17, 19 e 25): payload NIP-44 v2 cifrado ao destinatário — ver *Cifragem do `content`* |
 | `sig` | derivado | Assinatura sobre `id`; verificada obrigatoriamente na recepção |
 
 ## Tabela de kinds do protótipo
@@ -59,7 +60,7 @@ Todo evento segue o envelope padrão do protocolo Nostr:
 | Kind | Nome | Definido em | Direção | Conteúdo | Proteção do `content` |
 |------|------|-------------|---------|----------|-----------------------|
 | — | Oferta de corrida | *futura* | motorista → passageiro | A definir | cifrado (previsto) |
-| `20001` | Solicitação de corrida | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo | **claro — exceção** (anúncio sem destinatário; emenda 17) |
+| `20001` | Solicitação de corrida | feature 006 (passageiro) | passageiro → relays → motorista | JSON estruturado — ver *Conteúdo do kind 20001* abaixo | **claro — exceção** (anúncio sem destinatário; emenda 17; `reputacao` opcional, emenda 25) |
 | `20002` | Orçamento de corrida | feature 007 (motorista) | motorista → relays → passageiro | JSON estruturado — ver *Conteúdo do kind 20002* abaixo | cifrado ao destinatário (emenda 17) |
 | `20003` | Aceitação de orçamento | feature 008 (passageiro) | passageiro → relays → motorista escolhido | Ver *Conteúdo do kind 20003* abaixo | cifrado ao destinatário (emenda 17) |
 | `20004` | Recusa de orçamento | feature 008 (passageiro) | passageiro → relays → motorista não escolhido | Ver *Conteúdo do kind 20004* abaixo | cifrado ao destinatário (emenda 17) |
@@ -72,6 +73,8 @@ Todo evento segue o envelope padrão do protocolo Nostr:
 | `20011` | Rota da corrida | feature 017 (motorista) | motorista → relays → passageiro | JSON estruturado — ver *Conteúdo do kind 20011* abaixo | cifrado ao destinatário (emenda 17) |
 | `20012` | Corrida cancelada | feature 018 (motorista) | motorista → relays → passageiro | Ver *Conteúdo do kind 20012* abaixo | cifrado ao destinatário (emenda 17) |
 | `20013` | Corrida cancelada pelo passageiro | feature 020 (motorista) | passageiro → relays → motorista | Ver *Conteúdo do kind 20013* abaixo | cifrado ao destinatário (emendas 17 e 19) |
+| `20014` | Recibo de avaliação | feature 026 (motorista) | avaliador → relays → avaliado (motorista ↔ passageiro) | Ver *Conteúdo do kind 20014* abaixo | cifrado ao destinatário (emenda 25) |
+| `20015` | Confirmação de recibo | feature 026 (motorista) | avaliado → relays → avaliador | Ver *Conteúdo do kind 20015* abaixo | cifrado ao destinatário (emenda 25) |
 | — | Mensagem entre pares | *futura* | bidirecional | A definir (exigirá criptografia de conteúdo) | cifrado (previsto) |
 
 ## Forma da inscrição (vale para as duas apps)
@@ -98,7 +101,7 @@ emenda 05, consumido pela feature 008 dele — emenda 07) e, desde a emenda 10, 
 localização do motorista, feature 009 do passageiro) e, desde a emenda 13, `20011` (recebe a rota da
 corrida, feature 018 do passageiro) e, desde a emenda 14, `20012` (recebe o cancelamento da corrida
 pelo motorista, feature 019 do passageiro) e, desde a emenda 16, `20006` (recebe o aviso de que o
-motorista não pode atender a corrida, feature 020 do passageiro). Nenhuma das duas apps consome `20004`
+motorista não pode atender a corrida, feature 020 do passageiro). **Desde a emenda 25, as duas apps incluem também `20014` e `20015`** (recebem recibos de avaliação e as confirmações de recibo; ambos os papéis consomem os dois kinds). Nenhuma das duas apps consome `20004`
 ainda (emenda 07, "Consumo pelo motorista" fora de escopo) — quando isso mudar, a app
 correspondente acrescenta esses kinds à própria inscrição.
 
@@ -149,13 +152,15 @@ kind deste protótipo (ver acima).
 | `destination.lat`, `destination.lon` | `number` (graus decimais) | Destino escolhido pelo passageiro; sem truncamento de precisão |
 | `payment` | `string`, um de `"dinheiro"`, `"pix"`, `"cartao"` | Forma de pagamento escolhida pelo passageiro; nenhum outro valor é válido |
 
-Nenhum outro campo é definido nesta emenda. `content` continua sendo dado, nunca instrução — regra 3
-de recepção, abaixo, vale igualmente para este `kind`.
+Campo opcional (emenda 25): `reputacao`, ver *Reputação por recibos*, seção 1.5 — ausente = passageiro sem histórico; em
+claro, como o resto do `content`. Nenhum outro campo é definido. `content` continua sendo dado, nunca instrução — regra 3
+de recepção, abaixo, vale igualmente para este `kind`; um `reputacao` malformado não invalida a solicitação, é tratado como ausente.
 
 **Privacidade (exceção da emenda 17)**: publicado sem criptografia, deliberadamente — é o **único** kind de domínio que continua em claro (só assinado), pois é um anúncio a qualquer motorista
 interessado, não uma mensagem a um destinatário já escolhido. A justificativa completa, exigida pela
 seção "Restrições de Segurança e Privacidade" da constituição, está no `spec.md` da feature 006 do
-passageiro.
+passageiro. A emenda 25 acrescenta o campo opcional `reputacao`, que expõe em claro as chaves públicas das
+contrapartes anteriores e as notas dadas (limites na seção 1.9 de *Reputação por recibos*; constituição 2.17.0).
 
 **Consumo pelo motorista**: fora de escopo da feature 006 — este contrato define apenas o formato
 publicado. A app do motorista se inscrever neste `kind` e reagir a ele é trabalho de uma feature
@@ -198,6 +203,7 @@ respondido —, de onde se tira a chave com que o `content` é cifrado.
 | `carBrand`, `carModel` | `string` | Marca e modelo do veículo, copiados do cadastro (feature 003) no momento do envio (emenda 06) |
 | `carYear` | `number` (inteiro) | Ano-modelo do veículo, copiado do cadastro (feature 008) no momento do envio (emenda 06) |
 | `etaMinutes` | `number` (inteiro), **opcional** | Tempo estimado do trajeto motorista→origem, em minutos, derivado da mesma chamada de rota que calcula essa distância (feature 007/009 do motorista). **Omitido** (chave ausente do JSON, não `null` nem `0`) quando essa duração não pôde ser calculada — emenda 06 |
+| `reputacao` | objeto, **opcional** (emenda 25) | Reputação do motorista (seção 1.5 de *Reputação por recibos*): contagens declaradas e os 5 recibos mais recentes. **Omitido** (chave ausente, não `null`) quando o motorista não tem recibos. Cifrado junto com o resto do `content` |
 
 Nenhum outro campo é definido nestas emendas. `content` continua sendo dado, nunca instrução —
 regra 3 de recepção, abaixo, vale igualmente para este `kind`. Valores numéricos em ponto
@@ -499,9 +505,135 @@ passageiro cuja aceitação o motorista recebeu** (autor = passageiro da corrida
 cancelamento. Fora dessas condições (outra corrida, outro autor, nenhuma corrida ativa), é ignorado sem
 erro. Um evento duplicado ou reentregue não tem efeito além do primeiro.
 
+## Conteúdo do kind 20014 — Recibo de avaliação (emenda 25)
+
+Evento **efêmero** (faixa 20000–29999). Publicado pelo **avaliador** ao encerrar uma corrida concluída — com ou
+sem nota —, endereçado ao **avaliado** (motorista avalia passageiro e passageiro avalia motorista), e reenviado
+enquanto não chega o `20015` correspondente (seção 1.7 de *Reputação por recibos*). Nunca é publicado para corrida
+cancelada ou não concluída.
+
+**Tags**: marcador `["t", "tcc-ufsc-caronas"]`; `["e", "<guid_corrida>"]` (o `id` do `kind: 20002` aceito); e
+`["p", "<pubkey_avaliado>"]`.
+
+**`content`**: o recibo completo (JSON, com `assinatura`), formato da seção 1.2, cifrado NIP-44 ao avaliado. **Não**
+usa o marcador `{}`: o recibo é o dado próprio do kind.
+
+**Privacidade**: cifrado ao avaliado (emenda 25). O recibo carrega as duas chaves públicas e a nota, visíveis só às
+partes; o avaliado é quem decide apresentá-lo depois (seção 1.5, `20001`/`20002`).
+
+**Recepção**: regra 7 e seção 1.8. Recibo cuja tag `p` não é a chave do receptor, em claro, com assinatura ou
+`id_recibo` inválidos, de `guid_corrida` diferente da tag `e`, ou de avaliador diferente do autor do evento, é
+descartado sem erro e sem efeito.
+
+## Conteúdo do kind 20015 — Confirmação de recibo (emenda 25)
+
+Evento **efêmero** (faixa 20000–29999). Publicado pelo **avaliado** ao gravar um `20014` válido (ou ao recebê-lo de
+novo, já gravado e idêntico), endereçado ao **avaliador**, para que este pare de reenviar.
+
+**Tags**: marcador `["t", "tcc-ufsc-caronas"]`; `["e", "<guid_corrida>"]`; `["p", "<pubkey_avaliador>"]`.
+
+**`content`**: `{"id_recibo":"<hex>"}`, cifrado NIP-44 ao avaliador. **Não** usa o marcador `{}`.
+
+**Recepção**: regra 7. Só vale confirmação **assinada pelo avaliado do recibo pendente** e com `id_recibo` igual ao
+do recibo emitido para aquela corrida; qualquer outra é ignorada sem erro.
+
+## Reputação por recibos
+
+> Esta seção MUST ser copiada **literalmente** para `specs/002-nostr-relay-connection/contracts/nostr-events.md` das duas apps, na mesma alteração em que o código muda (Princípio IV). É o único acoplamento entre as apps.
+
+### 1.1 Objetivo
+
+Reputação **sem backend e sem guardar avaliações em relays**: cada corrida concluída gera um **recibo assinado** pelo avaliador, entregue ao avaliado, que o guarda localmente e o apresenta (últimos N) quando for avaliado por outro usuário. Os recibos de cada avaliado formam uma **cadeia numerada e encadeada por hash**.
+
+### 1.2 Recibo
+
+Objeto JSON, **sem** o campo `assinatura` para fins de hash:
+
+| Campo | Tipo | Regra |
+|---|---|---|
+| `v` | int | `1` |
+| `guid_corrida` | string hex(64) | `id` do evento `kind: 20002` aceito (`quoteId`). Já é comum às duas apps |
+| `pubkey_avaliador` | string hex(64) | autor do recibo |
+| `pubkey_avaliado` | string hex(64) | quem recebe o recibo |
+| `nota` | int 1–5, **opcional** | chave omitida se o avaliador não avaliou (conta como corrida, não como avaliação) |
+| `criado_em` | int | epoch em segundos (só informativo; NUNCA usado para ordenar com segurança, regra 5) |
+| `seq` | int ≥ 0 | posição na cadeia **do avaliado** |
+| `hash_anterior` | string hex(64), **opcional** | `id_recibo` do recibo `seq−1`; omitido quando `seq = 0` |
+| `id_recibo` | string hex(64) | SHA-256 de `canonico(recibo)` (abaixo) |
+| `assinatura` | string hex(128) | Schnorr (BIP-340) do avaliador sobre `id_recibo` |
+
+**Forma canônica** (UTF-8, campos separados por `|`, ausente = `-`):
+
+```text
+tcc-recibo-v1|<guid_corrida>|<pubkey_avaliador>|<pubkey_avaliado>|<nota|->|<criado_em>|<seq>|<hash_anterior|->
+```
+
+`id_recibo = SHA-256(canonico)` em hex minúsculo. A assinatura usa a mesma API que `RideRatingSignature` já usa (`nostr.Nostr.instance.services.keys.sign/verify`). A chave privada **nunca** entra em hash, log ou evento (constituição).
+
+### 1.3 Cadeia
+
+- Há uma cadeia **por avaliado**. `seq` começa em `0` e cresce de 1 em 1.
+- O avaliador copia `seq` e `hash_anterior` do **estado declarado pelo avaliado** (1.5), depois de verificá-lo (1.6).
+- Recibos chegando fora de ordem são aceitos; a ordem é por `seq`. Ramos (dois recibos com o mesmo `seq`, de corridas diferentes) são tolerados e exibidos como tal; o `seq` repetido em recibo recebido **para a mesma corrida** é rejeitado.
+
+### 1.4 Novos kinds (efêmeros, cifrados NIP-44 ao destinatário, tags `t`, `e`, `p` como nos demais)
+
+| Kind | Nome | Autor → destinatário | `e` | `content` (antes de cifrar) |
+|---|---|---|---|---|
+| `20014` | Recibo de avaliação | avaliador → avaliado | `guid_corrida` | o recibo completo (JSON, com `assinatura`) |
+| `20015` | Confirmação de recibo | avaliado → avaliador | `guid_corrida` | `{"id_recibo":"<hex>"}` |
+
+Entram na lista de cifragem da emenda 17 ("kinds 20002 a 20015") e na regra de recepção 7. Ambos os papéis (motorista e passageiro) consomem os dois kinds: **acrescentar `20014` e `20015` ao conjunto de kinds consumidos** de cada app (e à documentação "Forma da inscrição").
+
+### 1.5 Campo `reputacao` (em `20001` e `20002`)
+
+Acrescentado ao JSON de `content` do `20001` (passageiro, **em claro**) e do `20002` (motorista, cifrado). **Opcional**: ausente = usuário sem histórico.
+
+```json
+"reputacao": {
+  "corridas": 12,
+  "avaliacoes": 9,
+  "media": 4.78,
+  "seq_proximo": 12,
+  "head": "<id_recibo do seq 11>",
+  "recibos": [ { …recibo completo… }, … ]
+}
+```
+
+- `corridas` = nº de recibos guardados; `avaliacoes` = nº com `nota`; `media` = média das notas (omitir se `avaliacoes = 0`). **Declarados**; só os `recibos` são verificáveis.
+- `seq_proximo` = próximo `seq` a ser usado; `head` = `id_recibo` do recibo `seq_proximo−1` (omitido se `seq_proximo = 0`).
+- `recibos` = os **N mais recentes** por `seq` (N = 5, constante `kReputacaoJanela`), do mais novo para o mais antigo.
+- Limite de tamanho do `content`: continua 65 535 bytes (NIP-44).
+
+### 1.6 Verificação ao receber uma `reputacao` (função pura, testável)
+
+Para cada recibo: (a) `id_recibo` recalculado confere; (b) assinatura válida para `pubkey_avaliador`; (c) `pubkey_avaliado` == autor do evento (`pubkey` do `20001`/`20002`); (d) `v == 1`, `nota` ∈ 1..5 se presente; (e) `seq` estritamente decrescente na lista; (f) `guid_corrida` sem repetição; (g) `pubkey_avaliador != pubkey_avaliado`. Recibo inválido é **descartado e contado**. Depois: (h) `head` MUST ser o `id_recibo` do recibo de `seq = seq_proximo−1` presente na lista, senão a reputação é marcada **inconsistente**; (i) para recibos consecutivos na lista, `hash_anterior` do mais novo MUST ser o `id_recibo` do `seq−1` se este estiver presente; lacunas de `seq` são exibidas ("N recibos não apresentados").
+
+Resultado exibido: **"verificado nos últimos N"** (média e contagem calculadas só sobre recibos válidos) separado do **"declarado"** (`corridas`, `avaliacoes`, `media`). Nunca misturar os dois numa só nota.
+
+### 1.7 Emissão do recibo (avaliador)
+
+1. Ao encerrar a corrida (modal de avaliação fechada, com ou sem nota), obter a `reputacao` que o **avaliado declarou nesta corrida** (guardada no momento do orçamento/solicitação, 2.x).
+2. Verificar (1.6). Se **inconsistente**, NÃO emitir recibo, avisar o usuário em uma linha; a nota local (`ride_ratings`) continua gravada.
+3. `seq = seq_proximo`, `hash_anterior = head`; montar, calcular `id_recibo`, assinar.
+4. Gravar em `recibos_emitidos` com `pendente = 1` **antes** de publicar (sobrevive a reinício).
+5. Publicar `kind: 20014`. Reenviar enquanto `pendente = 1`: a cada reconexão de relay, ao abrir o app e a cada 60 s enquanto a interface do app estiver ativa (temporizador próprio do serviço de recibos; o serviço em segundo plano não tem a chave privada e não reenvia). Para quando chegar `20015` com o `id_recibo` correspondente.
+6. Corrida cancelada ou não concluída: **nenhum recibo**.
+
+### 1.8 Recepção do recibo (avaliado)
+
+Depois das regras 1, 2, 6 e 7 de recepção: validar (1.6 a–d, g) com `pubkey_avaliado == minha chave` e `pubkey_avaliador == autor do evento`; `guid_corrida` == tag `e`; não existir recibo salvo para o mesmo `guid_corrida` (se existir e for idêntico, apenas reenviar `20015`; se diferente, ignorar). Gravar em `recibos_recebidos` (imutável) e publicar `20015`. Recalcular `corridas`, `avaliacoes`, `media`, `seq_proximo = max(seq)+1`, `head` = `id_recibo` do maior `seq`.
+
+### 1.9 Limites conhecidos (documentar no contrato, não esconder)
+
+- O avaliado controla o que apresenta: pode omitir recibos ruins **recentes** se criar uma cadeia sem eles; a cadeia + `head` conferido pelo avaliador só **reduz** isso, não elimina.
+- Quem recria a identidade (nova chave) zera o histórico (Sybil). Perder o app/chave perde a reputação.
+- `corridas/avaliacoes/media` declarados não são verificáveis além da janela de N.
+- O `20001` é público: os recibos nele expõem as chaves públicas das contrapartes. Aceito no protótipo; alternativa futura: enviar só o resumo no `20001` e os recibos após o orçamento.
+
 ## Cifragem do `content` (emenda 17)
 
-Vale para os kinds `20002` a `20013`. O `20001` **não** é cifrado.
+Vale para os kinds `20002` a `20015` (emendas 17, 19 e 25). O `20001` **não** é cifrado.
 
 - **Padrão**: NIP-44 v2. Chave de conversa = HKDF-extract (SHA-256, `salt = "nip44-v2"`) sobre o
   segredo ECDH (coordenada x, secp256k1) entre a chave privada do remetente e a pública do
@@ -516,12 +648,13 @@ Vale para os kinds `20002` a `20013`. O `20001` **não** é cifrado.
 - **Texto de entrada**: o JSON descrito na seção de cada kind. Onde a seção diz `content` vazio
   (`""`) — `20003`, `20004`, `20006`, `20007`, `20008`, `20009`, `20010`, `20012`, `20013` —, o texto de
   entrada é o marcador fixo `{}`, porque o NIP-44 rejeita texto vazio. `content` em claro, ou que
-  decifre para outro texto nesses kinds, é inválido.
+  decifre para outro texto nesses kinds, é inválido. O `20014` (dado próprio: o recibo) e o `20015` (dado
+  próprio: `{"id_recibo": …}`) **não** usam o marcador `{}` (emenda 25).
 - **Exceção — `20001`**: continua em claro e só assinado. É um anúncio a qualquer motorista, sem
   destinatário, logo sem chave com que cifrar; posição e destino ficam públicos (constituição 2.11.0).
 - **Fora de escopo**: metadados — autor, tag `p`, tag `e`, kind, momento e tamanho da mensagem —
   continuam visíveis a quem observa o relay.
-- **Sem compatibilidade**: evento em claro nos kinds `20002`–`20013` é inválido; as duas apps
+- **Sem compatibilidade**: evento em claro nos kinds `20002`–`20015` é inválido; as duas apps
   atualizam juntas.
 
 ## Regras de recepção (valem para as duas apps)
@@ -537,7 +670,7 @@ Vale para os kinds `20002` a `20013`. O `20001` **não** é cifrado.
 6. Descartar evento que não traga o marcador `["t", "tcc-ufsc-caronas"]`, mesmo que o relay o entregue
    — um relay pode ignorar o filtro `#t` da inscrição, e a app não deve depender do bom comportamento
    dele.
-7. Para os kinds `20002`–`20013` (emendas 17 e 19), **depois** da verificação de assinatura (regra 1), da
+7. Para os kinds `20002`–`20015` (emendas 17, 19 e 25), **depois** da verificação de assinatura (regra 1), da
    deduplicação (regra 2) e do marcador (regra 6): se a tag `p` não for a chave do receptor, ignorar;
    decifrar o `content`; se a decifração falhar (versão, MAC, padding, base64, tamanho) ou, nos kinds
    sem dado próprio, o texto decifrado não for exatamente `{}`, descartar sem erro e sem efeito. Um

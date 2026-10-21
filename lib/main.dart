@@ -220,7 +220,13 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _relayService.statusChanges.listen((_) => _refresh());
+    _relayService.statusChanges.listen((_) {
+      _refresh();
+      // 1.7 passo 5: a cada reconexão de relay, reenvia os recibos pendentes.
+      if (_relayService.hasConnectedRelay) {
+        unawaited(_receiptService.retryPending());
+      }
+    });
     _feed.changes.listen((_) {
       _refresh();
     });
@@ -231,6 +237,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _receiptService.dispose();
     unawaited(_serviceController?.dispose());
     _feed.dispose();
     _relayService.dispose();
@@ -254,6 +261,11 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
     } on CorruptedIdentityStorage catch (error) {
       _startupError = 'A identidade guardada está inválida: $error';
     }
+
+    // Recibos pendentes (feature 026, 1.7 passo 5): reenvia ao abrir o app e a
+    // cada 60 s enquanto a interface existir. Sem identidade não faz nada.
+    _receiptService.start();
+    unawaited(_receiptService.retryPending());
 
     try {
       // O serviço conecta sozinho à lista persistida; a interface só o inicia

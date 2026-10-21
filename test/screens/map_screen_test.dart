@@ -165,6 +165,20 @@ class InMemoryRideRatingStore implements RideRatingStore {
   }
 }
 
+/// `RideRatingStore` que só termina de gravar quando [liberar] completa — para
+/// provar que o recibo espera a nota local ser gravada.
+class _RatingLento extends InMemoryRideRatingStore {
+  _RatingLento(this.liberar);
+
+  final Future<void> liberar;
+
+  @override
+  Future<void> save(RideRating rating, Identity identity) async {
+    await liberar;
+    await super.save(rating, identity);
+  }
+}
+
 /// Origem padrão usada pelos dublês desta suíte quando o teste não precisa
 /// controlar a distância até ela — mesma coordenada default de
 /// [solicitacaoAssinada].
@@ -3189,6 +3203,244 @@ void main() {
       },
     );
   });
+
+  group(
+    'MapScreen — emissão do recibo ao fim da corrida (feature 026, US2)',
+    () {
+      Reputation declaradaDoPassageiro() {
+        final cadeia = signedChain(
+          avaliado: passageiroDeTeste.publicKey,
+          notas: [5, 3],
+        );
+        return Reputation(
+          corridas: 2,
+          avaliacoes: 2,
+          media: 4.0,
+          seqProximo: 2,
+          head: cadeia.last.idRecibo,
+          recibos: cadeia.reversed.toList(),
+        );
+      }
+
+      /// Corrida "Em corrida" encerrada pela confirmação de destino, com a
+      /// reputação do passageiro já registrada (como o envio do orçamento faz).
+      Future<
+        ({
+          InMemoryReceiptStore receiptStore,
+          InMemoryRideRatingStore rideRatingStore,
+          FakeGateway gateway,
+        })
+      >
+      encerrarCorrida(
+        WidgetTester tester, {
+        Reputation? declarada,
+        bool registrar = true,
+        InMemoryRideRatingStore? rideRatingStore,
+        bool relayAceita = true,
+      }) async {
+        final loja = InMemoryReceiptStore();
+        if (registrar) {
+          await loja.saveDeclared(
+            'quote-1',
+            passageiroDeTeste.publicKey,
+            declarada ?? declaradaDoPassageiro(),
+          );
+        }
+        final ratings = rideRatingStore ?? InMemoryRideRatingStore();
+        final ambiente = await montar(
+          tester,
+          receiptStore: loja,
+          rideRatingStore: ratings,
+          rideStateStore: InMemoryRideStateStore(
+            status: DriverRideStatus.emCorrida,
+            active: ActiveRide(
+              quoteId: 'quote-1',
+              passengerPubkey: passageiroDeTeste.publicKey,
+              originLat: _origemPadrao.$1,
+              originLon: _origemPadrao.$2,
+              destinationLat: _destinoPadrao.$1,
+              destinationLon: _destinoPadrao.$2,
+              destinationArrivalNotified: true,
+            ),
+          ),
+        );
+        ambiente.gateway.aceitarPublicacoes = relayAceita;
+        ambiente.gateway.emitir(
+          IncomingEvent(
+            relayUrl: 'wss://a.test',
+            payload: confirmacaoAssinada(
+              kind: NostrEvent.kindDestinationConfirmed,
+              quoteId: 'quote-1',
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+        return (
+          receiptStore: loja,
+          rideRatingStore: ratings,
+          gateway: ambiente.gateway,
+        );
+      }
+
+      Iterable<NostrEvent> recibosPublicados(FakeGateway g) =>
+          g.publicados.where((e) => e.kind == NostrEvent.kindReceipt);
+
+      testWidgets('confirmar com nota emite o recibo, pendente, e o publica', (
+        tester,
+      ) async {
+        final rep = declaradaDoPassageiro();
+        final a = await encerrarCorrida(tester, declarada: rep);
+
+        await tester.tap(find.byIcon(Icons.star_border).at(3));
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Confirmar'));
+        await tester.pumpAndSettle();
+
+        expect(a.rideRatingStore.salvos, hasLength(1));
+        final emitido = (await a.receiptStore.pendingIssued()).single;
+        expect(emitido.nota, 4);
+        expect(emitido.seq, 2);
+        expect(emitido.hashAnterior, rep.head);
+        expect(emitido.guidCorrida, 'quote-1');
+        expect(emitido.pubkeyAvaliado, passageiroDeTeste.publicKey);
+        expect(recibosPublicados(a.gateway), hasLength(1));
+      });
+
+      testWidgets('pular a avaliação emite o recibo sem nota', (tester) async {
+        final a = await encerrarCorrida(tester);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Pular'));
+        await tester.pumpAndSettle();
+
+        expect(a.rideRatingStore.salvos, isEmpty);
+        final emitido = (await a.receiptStore.pendingIssued()).single;
+        expect(emitido.nota, isNull);
+        expect(recibosPublicados(a.gateway), hasLength(1));
+      });
+
+      testWidgets('o recibo só é emitido depois de a nota local ser gravada', (
+        tester,
+      ) async {
+        final liberar = Completer<void>();
+        final lento = _RatingLento(liberar.future);
+        final a = await encerrarCorrida(tester, rideRatingStore: lento);
+
+        await tester.tap(find.byIcon(Icons.star_border).at(4));
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Confirmar'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(await a.receiptStore.pendingIssued(), isEmpty);
+        expect(recibosPublicados(a.gateway), isEmpty);
+
+        liberar.complete();
+        await tester.pumpAndSettle();
+
+        expect(lento.salvos, hasLength(1));
+        expect(await a.receiptStore.pendingIssued(), hasLength(1));
+      });
+
+      testWidgets('reputação inconsistente: nenhum recibo, aviso de uma linha, '
+          'nota local mantida', (tester) async {
+        final rep = declaradaDoPassageiro();
+        final a = await encerrarCorrida(
+          tester,
+          declarada: Reputation(
+            corridas: rep.corridas,
+            avaliacoes: rep.avaliacoes,
+            media: rep.media,
+            seqProximo: rep.seqProximo,
+            head: fakeGuid(31337),
+            recibos: rep.recibos,
+          ),
+        );
+
+        await tester.tap(find.byIcon(Icons.star_border).at(2));
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Confirmar'));
+        await tester.pumpAndSettle();
+
+        expect(a.rideRatingStore.salvos, hasLength(1));
+        expect(await a.receiptStore.pendingIssued(), isEmpty);
+        expect(recibosPublicados(a.gateway), isEmpty);
+        expect(
+          find.text(
+            'Recibo não emitido: a reputação do passageiro está inconsistente.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
+        'falha ao publicar não bloqueia a interface e deixa pendente',
+        (tester) async {
+          final a = await encerrarCorrida(tester, relayAceita: false);
+
+          await tester.tap(find.widgetWithText(TextButton, 'Pular'));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Avalie a corrida'), findsNothing);
+          expect(await a.receiptStore.pendingIssued(), hasLength(1));
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets('corrida sem registro da reputação (anterior à feature): '
+          'nenhum recibo, sem aviso', (tester) async {
+        final a = await encerrarCorrida(tester, registrar: false);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Pular'));
+        await tester.pumpAndSettle();
+
+        expect(await a.receiptStore.pendingIssued(), isEmpty);
+        expect(recibosPublicados(a.gateway), isEmpty);
+        expect(find.byType(SnackBar), findsNothing);
+      });
+
+      testWidgets('corrida cancelada pelo passageiro não gera recibo', (
+        tester,
+      ) async {
+        final loja = InMemoryReceiptStore();
+        await loja.saveDeclared(
+          'quote-1',
+          passageiroDeTeste.publicKey,
+          declaradaDoPassageiro(),
+        );
+        final ambiente = await montar(
+          tester,
+          receiptStore: loja,
+          rideStateStore: InMemoryRideStateStore(
+            status: DriverRideStatus.deslocandoAtePassageiro,
+            active: ActiveRide(
+              quoteId: 'quote-1',
+              passengerPubkey: passageiroDeTeste.publicKey,
+              originLat: _origemPadrao.$1,
+              originLon: _origemPadrao.$2,
+              destinationLat: _destinoPadrao.$1,
+              destinationLon: _destinoPadrao.$2,
+            ),
+          ),
+        );
+
+        ambiente.gateway.emitir(
+          IncomingEvent(
+            relayUrl: 'wss://a.test',
+            payload: cancelamentoDoPassageiro(quoteId: 'quote-1'),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+
+        expect(await loja.pendingIssued(), isEmpty);
+        expect(recibosPublicados(ambiente.gateway), isEmpty);
+      });
+    },
+  );
 
   group('MapScreen — rota da corrida no mapa (feature 016)', () {
     const origem = LatLng(-28.9298, -49.4753);

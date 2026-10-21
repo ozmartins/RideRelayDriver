@@ -469,7 +469,6 @@ class _MapScreenState extends State<MapScreen> {
     if (ativa == null || evento.referencedEventId != ativa.quoteId) return;
     if (!DriverRideRules.canConfirmDestinationArrival(_rideStatus)) return;
 
-    final quoteId = ativa.quoteId;
     setState(() {
       _rideStatus = DriverRideStatus.aguardandoSolicitacao;
       _activeRide = null;
@@ -478,7 +477,7 @@ class _MapScreenState extends State<MapScreen> {
     });
     unawaited(widget.rideStateStore.save(_rideStatus, null));
     _sincronizarRota();
-    unawaited(_mostrarModalAvaliacao(quoteId));
+    unawaited(_mostrarModalAvaliacao(ativa));
   }
 
   /// Abre a confirmação do cancelamento (feature 018, FR-002) — mesmo padrão
@@ -602,8 +601,11 @@ class _MapScreenState extends State<MapScreen> {
   /// Exibe a tela de avaliação da corrida recém-encerrada (feature 013,
   /// FR-001) — mesmo padrão de `_mostrarModalAceitacao`. Confirmar persiste
   /// a nota via `RideRatingStore` (FR-004, FR-005); pular fecha sem
-  /// persistir nada (FR-008).
-  Future<void> _mostrarModalAvaliacao(String quoteId) async {
+  /// persistir nada (FR-008). Nos dois casos, **depois** de gravar a nota local,
+  /// tenta emitir o recibo de reputação (feature 026, 1.7); isso nunca bloqueia
+  /// a interface.
+  Future<void> _mostrarModalAvaliacao(ActiveRide corrida) async {
+    final quoteId = corrida.quoteId;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -625,10 +627,36 @@ class _MapScreenState extends State<MapScreen> {
             );
           }
           if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          unawaited(_emitirRecibo(corrida, stars));
         },
-        onSkip: () => Navigator.of(dialogContext).pop(),
+        onSkip: () {
+          Navigator.of(dialogContext).pop();
+          unawaited(_emitirRecibo(corrida, null));
+        },
       ),
     );
+  }
+
+  /// Emite o recibo da [corrida] encerrada (1.7). Reputação inconsistente do
+  /// passageiro: nenhum recibo e um aviso de uma linha; a nota local já está
+  /// gravada. Qualquer falha é absorvida: o recibo, se gravado, é reenviado.
+  Future<void> _emitirRecibo(ActiveRide corrida, int? stars) async {
+    final servico = widget.receiptService;
+    if (servico == null) return;
+    try {
+      final resultado = await servico.issueFor(corrida, stars);
+      if (resultado == ReceiptIssue.inconsistent && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Recibo não emitido: a reputação do passageiro está inconsistente.',
+            ),
+          ),
+        );
+      }
+    } on Object {
+      // Absorvida.
+    }
   }
 
   /// A regra de aceitação (offline, corrida em andamento, `content`

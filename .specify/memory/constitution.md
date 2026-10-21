@@ -1,6 +1,32 @@
 <!--
 SYNC IMPACT REPORT
 
+--- Emenda 2.17.0 (2026-10-20) ---
+Version change: 2.16.0 → 2.17.0
+Bump rationale: MINOR. A exceção do `kind: 20001` às Restrições de Segurança e Privacidade (só assinado, em claro,
+  com posição e destino públicos) passa a admitir também o campo opcional `reputacao`. Nenhum Princípio foi
+  alterado; nenhuma obrigação foi removida.
+Motivador: pedido do autor — reputação sem backend e sem guardar avaliações em relays (emenda 25 do contrato,
+  features `026-recibos-de-reputacao` do motorista e `027-recibos-de-reputacao` do passageiro). Cada corrida
+  concluída gera um recibo assinado pelo avaliador, entregue ao avaliado, que apresenta os mais recentes a quem
+  for avaliá-lo. Como o `20001` não tem destinatário e vai em claro, os recibos nele ficam legíveis a qualquer um
+  no relay. A seção exige registrar a exceção antes do código; este é o registro.
+Custo aceito: cada recibo expõe em claro as chaves públicas das contrapartes anteriores do passageiro e as notas
+  dadas. Alternativa futura registrada no contrato (seção 1.9): enviar só o resumo no `20001` e os recibos após o
+  orçamento. Os kinds novos `20014` e `20015` têm destinatário conhecido e são cifrados (NIP-44) como os demais,
+  sem nova exceção; o `20002` leva a reputação do motorista cifrada. O serviço em segundo plano continua sem
+  chave, sem decifrar e sem notificar por esses kinds.
+Emendada em conjunto com a constituição espelho (`Prototipo/passenger`), na mesma alteração e com texto idêntico
+  salvo nome, escopo e perspectiva. A constituição de `Prototipo/` não repete esta seção e não precisa de emenda.
+
+Princípios modificados: nenhum. Seções adicionadas/removidas: nenhuma.
+Seções modificadas: Restrições de Segurança e Privacidade — exceção do `kind: 20001`.
+
+Propagação:
+  ✅ Constituição espelho — emendada na mesma alteração; corpos conferidos por diff.
+  ◻ Prototipo/.specify/memory/constitution.md — não contém esta seção; sem alteração necessária.
+  ⚠ Contrato (emenda 25), código e `CLAUDE.md`, em commits separados (posteriores).
+
 --- Emenda 2.16.0 (2026-10-13) ---
 Version change: 2.15.0 → 2.16.0
 Bump rationale: MINOR. A exceção de geocodificação às Restrições de Segurança e Privacidade proibia persistir o
@@ -607,9 +633,13 @@ seja auditado ou reproduzido.
   destinatário (NIP-44, entre a chave privada do remetente e a chave pública do destinatário) e
   assinada (NIP-01); só o `content` é cifrado — as tags de marcador, referência e destinatário ficam
   em claro para filtro e roteamento. A única exceção é o `kind: 20001` (Solicitação de corrida), um
-  anúncio a qualquer motorista, sem destinatário: só assinado, com posição e destino públicos,
-  justificado em `specs/006-solicitar-corrida/spec.md` do passageiro e no contrato. Toda exceção nova
-  MUST ser registrada nesta seção, com justificativa, antes de ser implementada.
+  anúncio a qualquer motorista, sem destinatário: só assinado, com posição e destino públicos e, desde a
+  emenda 25 do contrato, o campo opcional `reputacao` (resumo e até 5 recibos assinados do solicitante,
+  que expõe em claro as chaves públicas das contrapartes anteriores e as notas dadas — custo aceito do
+  protótipo, seção 1.9 do contrato), justificado em `specs/006-solicitar-corrida/spec.md` do passageiro,
+  em `specs/026-recibos-de-reputacao/spec.md` (motorista), `specs/027-recibos-de-reputacao/spec.md`
+  (passageiro) e no contrato. Toda exceção nova MUST ser registrada nesta seção, com justificativa,
+  antes de ser implementada.
 - Dados de usuário MUST NOT ser enviados a qualquer serviço que não seja um relay Nostr configurado,
   com uma única exceção: o texto de busca de endereço e o endereço resultante da seleção do usuário
   podem ser enviados a um serviço de geocodificação de terceiros, estritamente para obter endereços
@@ -853,4 +883,4 @@ entre elas é defeito a corrigir, não risco a administrar.
 A seção Padrão de Commits é, além disso, compartilhada com a constituição de `Prototipo/`, com
 texto idêntico, e MUST ser emendada nas três ao mesmo tempo.
 
-**Version**: 2.16.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-10-13
+**Version**: 2.17.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-10-20

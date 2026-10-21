@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:latlong2/latlong.dart';
 
 import 'nostr_event.dart';
+import 'reputation.dart';
 
 /// Solicitação de corrida recebida, já verificada e deduplicada pelo
 /// `EventFeed` (regras de recepção do contrato de eventos) antes de chegar
@@ -18,6 +19,7 @@ class RideRequestReceived {
     required this.origin,
     required this.destination,
     required this.payment,
+    this.reputation,
   });
 
   /// O `id` do evento `kind: 20001` original — usado na tag `["e", ...]` do
@@ -35,6 +37,12 @@ class RideRequestReceived {
   /// `"dinheiro"`, `"pix"` ou `"cartao"` — dado exibido, nunca interpretado
   /// (regra 3 de recepção do contrato).
   final String payment;
+
+  /// Reputação declarada pelo passageiro no `20001` (emenda 25), ou `null` se
+  /// ausente **ou malformada**: uma reputação ruim nunca invalida a solicitação
+  /// (R7 de `specs/026-recibos-de-reputacao/research.md`). Ainda não verificada —
+  /// quem exibe a passa por `verifyReputation`.
+  final Reputation? reputation;
 
   /// Decodifica um [NostrEvent] de `kind: 20001` para esta entidade.
   ///
@@ -59,9 +67,20 @@ class RideRequestReceived {
           (destination['lon'] as num).toDouble(),
         ),
         payment: content['payment'] as String,
+        reputation: _parseReputation(content['reputacao']),
       );
     } on Object catch (erro) {
       throw FormatException('Solicitação de corrida malformada: $erro');
+    }
+  }
+
+  /// `reputacao` ausente ou malformada vira `null`, sem lançar.
+  static Reputation? _parseReputation(Object? raw) {
+    if (raw == null) return null;
+    try {
+      return Reputation.fromJson(raw);
+    } on Object {
+      return null;
     }
   }
 

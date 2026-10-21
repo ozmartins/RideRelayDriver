@@ -160,6 +160,15 @@ class ReceiptService {
     if (receipt.pubkeyAvaliador != event.authorPublicKey) return;
     if (receipt.guidCorrida != event.referencedEventId) return;
 
+    // Emenda 26: só vale recibo de uma corrida que este motorista já conhecia
+    // com o avaliador — o orçamento foi enviado a ele. Consulta só o registro
+    // local, nunca dados do recibo; quem nunca negociou com o motorista não
+    // consegue lhe empurrar recibos de corridas inventadas.
+    if (await _store.counterpartOf(receipt.guidCorrida) !=
+        receipt.pubkeyAvaliador) {
+      return;
+    }
+
     final existing = await _store.receivedFor(receipt.guidCorrida);
     if (existing != null) {
       if (existing == receipt) await _ack(identity, receipt);

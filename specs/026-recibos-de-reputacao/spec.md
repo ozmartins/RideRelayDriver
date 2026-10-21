@@ -102,6 +102,7 @@ recibo de fim de corrida use exatamente o estado que foi verificado e aceito na 
 - Eventos novos sem assinatura válida, duplicados por `id`, sem o marcador ou com `content` ilegível: descartados
   como os demais eventos, sem erro.
 - Corridas anteriores a esta feature não geram recibo retroativo.
+- Recibo válido de um estranho, com corrida inventada: ignorado (emenda 26). Quem negociou com o motorista ainda pode lhe emitir recibo de corrida que não houve; isso fica registrado nos limites do contrato.
 - Passageiro que declarou reputação ausente na corrida (sem histórico) recebe recibo com `seq = 0` e sem hash anterior.
 
 ## Requisitos
@@ -157,6 +158,10 @@ recibo de fim de corrida use exatamente o estado que foi verificado e aceito na 
   avaliado = própria chave, avaliador = autor do evento e corrida = tag `e`; se já existe recibo para a corrida,
   idêntico apenas reenvia a confirmação, diferente é ignorado; senão grava (imutável) e publica `20015`.
 - **FR-016**: O orçamento (`20002`) MUST incluir a reputação própria, omitindo o campo se o motorista não tem recibos.
+
+**Corrida conhecida (emenda 26)**
+- **FR-023**: Ao receber um recibo, o app MUST gravá-lo só se o `guid_corrida` for de um orçamento que **este motorista enviou àquele avaliador**, conforme o registro local; recibo de corrida desconhecida, ou ligada a outro passageiro, MUST ser descartado sem erro e sem confirmação. A consulta MUST usar só o registro local, nunca dados do próprio recibo.
+- **FR-024**: Uma `reputacao` com mais de 5 recibos MUST ser tratada como malformada (ausente), sem verificar nenhum recibo dela.
 
 **Apresentação e integração**
 - **FR-017**: A solicitação recebida MUST ler a `reputacao` opcional do `20001`; reputação malformada MUST virar

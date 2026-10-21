@@ -124,6 +124,22 @@ void main() {
       expect(await store.pendingIssued(), [r]);
     });
 
+    test(
+      'counterpartOf devolve o passageiro registrado, ou null se desconhecida',
+      () async {
+        final store = InMemoryReceiptStore();
+        expect(await store.counterpartOf('q1'), isNull);
+
+        await store.saveDeclared('q1', dono, const Reputation.empty());
+        expect(await store.counterpartOf('q1'), dono);
+
+        // Imutável: outro registro da mesma corrida não troca a contraparte.
+        await store.saveDeclared('q1', fakeGuid(5), const Reputation.empty());
+        expect(await store.counterpartOf('q1'), dono);
+        expect(await store.counterpartOf('q2'), isNull);
+      },
+    );
+
     test('reputação declarada: ausente, vazia e preenchida', () async {
       final store = InMemoryReceiptStore();
       expect(await store.declaredFor('q1'), isNull);

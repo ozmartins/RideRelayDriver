@@ -97,6 +97,16 @@ void main() {
           .event;
 
   group('ReceiptService.onReceiptEvent', () {
+    // Emenda 26: o motorista só aceita recibo de uma corrida que ele conhecia
+    // com o avaliador — o orçamento `fakeGuid(1)` foi enviado ao passageiro.
+    setUp(
+      () => store.saveDeclared(
+        fakeGuid(1),
+        passageiro.publicKey,
+        const Reputation.empty(),
+      ),
+    );
+
     test('recibo válido: grava e confirma com 20015 ao avaliador', () async {
       final r = recibo();
 
@@ -354,6 +364,102 @@ void main() {
 
       expect(await store.receivedFor(r.guidCorrida), r);
     });
+  });
+
+  group('ReceiptService.onReceiptEvent — corrida conhecida (emenda 26)', () {
+    setUp(
+      () => store.saveDeclared(
+        fakeGuid(1),
+        passageiro.publicKey,
+        const Reputation.empty(),
+      ),
+    );
+
+    test(
+      'recibo válido de um estranho com corrida inventada: ignorado',
+      () async {
+        final estranho = newTestIdentity();
+        final r = signedReceipt(
+          avaliador: estranho,
+          avaliado: motorista.publicKey,
+          seq: 0,
+          nota: 1,
+          guid: fakeGuid(9006),
+        );
+
+        await service.onReceiptEvent(
+          IdentityService(InMemoryKeyStore())
+              .signReceipt(identity: estranho, receipt: r)
+              .event,
+        );
+
+        expect(await store.receivedFor(r.guidCorrida), isNull);
+        expect((await store.myReputation()).corridas, 0);
+        expect(publicados, isEmpty);
+      },
+    );
+
+    test(
+      'corrida conhecida, mas ligada a outra contraparte: ignorado',
+      () async {
+        // O orçamento fakeGuid(2) foi enviado a OUTRO passageiro; quem o
+        // apresenta como seu avaliador não é aquele passageiro.
+        final outroPassageiro = newTestIdentity();
+        await store.saveDeclared(
+          fakeGuid(2),
+          outroPassageiro.publicKey,
+          const Reputation.empty(),
+        );
+        final r = recibo(
+          guid: fakeGuid(2),
+          nota: 1,
+        ); // assinado por `passageiro`
+
+        await service.onReceiptEvent(eventoDe(r));
+
+        expect(await store.receivedFor(r.guidCorrida), isNull);
+        expect(publicados, isEmpty);
+      },
+    );
+
+    test(
+      'o registro local decide: o recibo não pode se autodeclarar conhecido',
+      () async {
+        // Nada foi registrado para fakeGuid(3); um recibo perfeito para ele,
+        // com a tag e do evento igual, continua sem valer.
+        final r = recibo(guid: fakeGuid(3));
+
+        await service.onReceiptEvent(eventoDe(r));
+
+        expect(await store.counterpartOf(fakeGuid(3)), isNull);
+        expect(await store.receivedFor(r.guidCorrida), isNull);
+        expect(publicados, isEmpty);
+      },
+    );
+
+    test(
+      'corrida conhecida com o avaliador certo: gravado e confirmado',
+      () async {
+        final r = recibo(guid: fakeGuid(1));
+
+        await service.onReceiptEvent(eventoDe(r));
+
+        expect(await store.receivedFor(r.guidCorrida), r);
+        expect(publicados, hasLength(1));
+      },
+    );
+
+    test(
+      'duplicado idêntico de corrida conhecida continua só reconfirmando',
+      () async {
+        final r = recibo(guid: fakeGuid(1));
+        await service.onReceiptEvent(eventoDe(r));
+        await service.onReceiptEvent(eventoDe(r));
+
+        expect(publicados, hasLength(2));
+        expect((await store.myReputation()).corridas, 1);
+      },
+    );
   });
 
   group('ReceiptService.onAckEvent', () {

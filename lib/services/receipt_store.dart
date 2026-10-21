@@ -53,6 +53,12 @@ abstract class ReceiptStore {
   /// A reputação do passageiro guardada para [quoteId], ou `null` se a corrida
   /// não foi registrada.
   Future<Reputation?> declaredFor(String quoteId);
+
+  /// A chave do passageiro a quem este motorista enviou o orçamento [quoteId],
+  /// como foi registrada por [saveDeclared]; `null` se o motorista não enviou
+  /// esse orçamento. É o que diz se um recibo recebido é de uma corrida
+  /// **conhecida** com o avaliador (emenda 26, contrato 1.8).
+  Future<String?> counterpartOf(String quoteId);
 }
 
 /// Implementação real: três tabelas em `receipts.db` (v1), conforme
@@ -212,6 +218,18 @@ class SqfliteReceiptStore implements ReceiptStore {
     } on Object {
       return null; // linha corrompida = ausente
     }
+  }
+
+  @override
+  Future<String?> counterpartOf(String quoteId) async {
+    final db = await _open();
+    final rows = await db.query(
+      'reputacao_declarada',
+      columns: ['avaliado'],
+      where: 'quote_id = ?',
+      whereArgs: [quoteId],
+    );
+    return rows.isEmpty ? null : rows.first['avaliado'] as String?;
   }
 
   static Receipt? _parse(Object? json) {

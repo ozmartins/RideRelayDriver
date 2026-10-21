@@ -2992,6 +2992,12 @@ void main() {
     ) async {
       final ambiente = await montar(tester);
       final r = reciboDoPassageiro();
+      // Emenda 26: o orçamento da corrida foi enviado a esse passageiro.
+      await ambiente.receiptStore.saveDeclared(
+        r.guidCorrida,
+        passageiroDeTeste.publicKey,
+        const Reputation.empty(),
+      );
 
       ambiente.gateway.emitir(
         IncomingEvent(
@@ -3033,6 +3039,11 @@ void main() {
       tester,
     ) async {
       final ambiente = await montar(tester);
+      await ambiente.receiptStore.saveDeclared(
+        fakeGuid(1),
+        passageiroDeTeste.publicKey,
+        const Reputation.empty(),
+      );
       final payload = reciboAssinado(recibo: reciboDoPassageiro());
 
       for (final relay in ['wss://a.test', 'wss://b.test']) {
@@ -3045,6 +3056,31 @@ void main() {
 
       expect((await ambiente.receiptStore.myReputation()).corridas, 1);
       expect(ambiente.gateway.publicados, hasLength(1));
+    });
+
+    testWidgets('20014 válido de um estranho com corrida inventada é ignorado '
+        '(emenda 26)', (tester) async {
+      final ambiente = await montar(tester);
+      final estranho = identidadeDeTeste();
+      final r = signedReceipt(
+        avaliador: estranho,
+        avaliado: motoristaDeTeste.publicKey,
+        seq: 0,
+        nota: 1,
+        guid: fakeGuid(9006),
+      );
+
+      ambiente.gateway.emitir(
+        IncomingEvent(
+          relayUrl: 'wss://a.test',
+          payload: reciboAssinado(recibo: r, autor: estranho),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect((await ambiente.receiptStore.myReputation()).corridas, 0);
+      expect(ambiente.gateway.publicados, isEmpty);
     });
 
     testWidgets('20015 do avaliado confirma o recibo emitido pendente', (

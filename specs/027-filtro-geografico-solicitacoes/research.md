@@ -121,8 +121,26 @@ cenário 3): (a) se cancelar o `StreamSubscription` do `dart_nostr` envia `CLOSE
 gateway chama `closeEventsSubscription(subscriptionId)` explicitamente, com o `subscriptionId` fixado na
 `NostrRequest`; (b) quantos relays padrão **respeitam** o filtro `#g` — `tool/probe_geohash_filter.dart` publica
 duas solicitações de teste (uma dentro, uma fora da célula), inscreve-se com `#g` e registra, por relay, se a de fora
-chegou. Resultado e método vão para este arquivo **depois** da medição; até lá nada aqui diz que algum relay
-respeita o filtro.
+chegou. **Medição (2026-10-22T00:53Z, `dart run tool/probe_geohash_filter.dart`, uma execução, computador do autor, sem os apps
+abertos).** Método: por relay, duas conexões WebSocket e chaves descartáveis; (A) `REQ` com `#t` e `#g` das 9
+células de Araranguá (precisão 4, raio de 10 km), publicação de um `20001` de teste com origem a ~3 km de
+Araranguá e de outro em São Paulo, ambos com as três tags `g`; (B) `CLOSE` da inscrição e nova publicação em
+Araranguá; (C) novo `REQ` com as células de São Paulo e publicação de um `20001` de cada cidade. Espera de 5 s
+por fase (3 s depois do `CLOSE`).
+
+| Relay | Publicação aceita (`OK`) | A: dentro / fora chegaram | B: chegou depois do `CLOSE` | C: Araranguá / São Paulo chegaram | EOSE do `REQ` com `#g` |
+|---|---|---|---|---|---|
+| `wss://nos.lol` | sim, as 6 | sim / não | não | não / sim | 240 ms |
+| `wss://relay.primal.net` | sim, as 6 | sim / não | não | não / sim | 226 ms |
+| `wss://offchain.pub` | sim, as 6 | sim / não | não | não / sim | 192 ms |
+
+Os três relays padrão **respeitaram o `#g`** (só entregaram o evento da célula pedida), **honraram o `CLOSE`**
+(nada chegou à inscrição fechada) e a troca de células com um novo `REQ` funcionou. Limites da medição: uma única
+execução em um instante e uma rede só; só os três relays da lista padrão; a latência do EOSE é de uma conexão
+isolada, não do app; o que cada relay faz sob carga, com filtros maiores ou em outro dia não foi medido. A sonda
+foi validada antes contra um relay local de teste nos três modos (respeita, ignora `#g`, ignora `CLOSE`), o que
+valida a lógica dela, não o comportamento de relays reais. O app continua conferindo na recepção (regra 8), então
+um relay que passe a ignorar o `#g` degrada o ruído e o `limit: 50`, não a correção.
 
 ## R8 — Privacidade (exigência do pedido e do contrato)
 

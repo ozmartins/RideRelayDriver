@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:driver/domain/driver_coverage.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/relay.dart';
 import 'package:driver/services/background/service_messages.dart';
@@ -344,5 +345,77 @@ void main() {
     await pumpEventQueue();
 
     expect(fechou, isTrue);
+  });
+  group('RemoteRelayConnection — cobertura geográfica (feature 027)', () {
+    final cobertura = DriverCoverage.around(
+      lat: -28.9298,
+      lon: -49.4753,
+      radiusKm: 10,
+    );
+
+    test(
+      'applyCoverage guarda a cobertura e envia ServiceSetCoverage',
+      () async {
+        remota.attach(foreground: true);
+        servicoResponde();
+        await pumpEventQueue();
+
+        await remota.applyCoverage(cobertura);
+
+        expect(remota.coverage, cobertura);
+        final enviadas = daInterface<ServiceSetCoverage>();
+        expect(enviadas, hasLength(1));
+        expect(enviadas.single.coverage, cobertura);
+      },
+    );
+
+    test('applyCoverage(null) envia null e zera a cobertura', () async {
+      remota.attach(foreground: true);
+      servicoResponde();
+      await pumpEventQueue();
+      await remota.applyCoverage(cobertura);
+
+      await remota.applyCoverage(null);
+
+      expect(remota.coverage, isNull);
+      expect(daInterface<ServiceSetCoverage>().last.coverage, isNull);
+    });
+
+    test('antes de o serviço responder, a mensagem espera na fila', () async {
+      remota.attach(foreground: true);
+      await remota.applyCoverage(cobertura);
+      expect(daInterface<ServiceSetCoverage>(), isEmpty);
+
+      servicoResponde();
+      await pumpEventQueue();
+
+      expect(daInterface<ServiceSetCoverage>().last.coverage, cobertura);
+    });
+
+    test(
+      'serviço reiniciado (novo helloAck) recebe a cobertura vigente',
+      () async {
+        remota.attach(foreground: true);
+        servicoResponde();
+        await pumpEventQueue();
+        await remota.applyCoverage(cobertura);
+        final antes = daInterface<ServiceSetCoverage>().length;
+
+        remota.attach(foreground: true);
+        servicoResponde();
+        await pumpEventQueue();
+
+        expect(daInterface<ServiceSetCoverage>().length, antes + 1);
+        expect(daInterface<ServiceSetCoverage>().last.coverage, cobertura);
+      },
+    );
+
+    test('sem cobertura, o helloAck não manda mensagem de cobertura', () async {
+      remota.attach(foreground: true);
+      servicoResponde();
+      await pumpEventQueue();
+
+      expect(daInterface<ServiceSetCoverage>(), isEmpty);
+    });
   });
 }

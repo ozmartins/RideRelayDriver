@@ -1,3 +1,4 @@
+import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import '../domain/relay.dart';
 import 'relay_gateway.dart';
@@ -15,6 +16,14 @@ abstract class RelayConnection {
 
   /// Verdadeiro se ao menos um relay está conectado.
   bool get hasConnectedRelay;
+
+  /// A cobertura geográfica vigente (feature 027), ou `null` sem referência.
+  /// Só em memória; é quem o `EventFeed` consulta para recortar o `20001`.
+  DriverCoverage? get coverage;
+
+  /// Define a cobertura (ou a retira, com `null`): a inscrição passa a pedir o
+  /// `20001` só das células dela, ou deixa de pedi-lo.
+  Future<void> applyCoverage(DriverCoverage? coverage);
 
   /// Eventos brutos recebidos dos relays, sem verificação nem deduplicação.
   Stream<IncomingEvent> get incoming;

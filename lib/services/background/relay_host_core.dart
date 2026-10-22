@@ -75,6 +75,7 @@ class RelayHostCore {
   int _discardedInvalid = 0;
   int _discardedUnmarked = 0;
   int _discardedDuplicate = 0;
+  int _discardedOutOfCoverage = 0;
 
   /// Eventos descartados por assinatura inválida ou malformação.
   int get discardedInvalidCount => _discardedInvalid;
@@ -84,6 +85,10 @@ class RelayHostCore {
 
   /// Entregas repetidas (mesmo `id`) absorvidas.
   int get discardedDuplicateCount => _discardedDuplicate;
+
+  /// Solicitações (`20001`) fora da cobertura geográfica, descartadas antes de
+  /// repassar à interface e de notificar (regra de recepção 8 do contrato).
+  int get discardedOutOfCoverageCount => _discardedOutOfCoverage;
 
   /// O estado que a interface mandou por último (ou o persistido).
   ServiceState get state => _state;
@@ -128,6 +133,7 @@ class RelayHostCore {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    coverage = null;
     for (final s in _subscriptions) {
       await s.cancel();
     }
@@ -160,6 +166,22 @@ class RelayHostCore {
       return;
     }
 
+    // Recorte geográfico (regra 8, emenda 27): antes da deduplicação, para que
+    // o evento descartado com uma referência não seja tratado como repetido
+    // quando o relay o reentregar com outra. Sem cobertura (o motorista sem
+    // referência), a recusa é do `RideRequestFilter`, que conhece o estado.
+    final cobertura = coverage;
+    if (kind == NostrEvent.kindRideRequest && cobertura != null) {
+      final decisao = cobertura.evaluateRideRequest(
+        tags: _tagsDe(payload['tags']),
+        content: payload['content'] as String? ?? '',
+      );
+      if (!decisao.accepted) {
+        _discardedOutOfCoverage++;
+        return;
+      }
+    }
+
     // 3. deduplicação por id entre os relays
     final id = payload['id'] as String;
     if (!_seenIds.add(id)) {
@@ -176,6 +198,14 @@ class RelayHostCore {
       _onRideRequest(NostrEvent.fromVerifiedPayload(payload), payload);
     }
   }
+
+  /// Tags do payload como listas de texto; o que não for uma tag de strings é
+  /// ignorado (dado de relay não é confiável).
+  static List<List<String>> _tagsDe(Object? bruto) => [
+    if (bruto is List)
+      for (final tag in bruto)
+        if (tag is List) [for (final item in tag) item.toString()],
+  ];
 
   void _onRideRequest(NostrEvent event, Map<String, dynamic> payload) {
     // Com a interface visível quem trata é a modal.
@@ -208,6 +238,10 @@ class RelayHostCore {
             pending: _takePending(),
           ),
         );
+      case ServiceSetCoverage(coverage: final nova):
+        // Só em memória: nunca no `stateStore`, em log nem em notificação.
+        coverage = nova;
+        unawaited(relays.applyCoverage(nova));
       case ServiceStateUpdate(:final state):
         _state = state;
         if (state.appInForeground) unawaited(notifier.cancelAll());

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import '../domain/relay.dart';
 import 'relay_connection.dart';
@@ -59,6 +60,8 @@ class RelayService implements RelayConnection {
   /// Prazo para o relay responder à sonda antes de ser dado como caído.
   final Duration livenessTimeout;
 
+  DriverCoverage? _coverage;
+
   late final StreamSubscription<String> _lost;
   Timer? _retryTimer;
   Timer? _livenessTimer;
@@ -70,6 +73,18 @@ class RelayService implements RelayConnection {
       StreamController.broadcast();
   final StreamController<void> _statusChanges = StreamController.broadcast();
   StreamSubscription<IncomingEvent>? _incoming;
+
+  @override
+  DriverCoverage? get coverage => _coverage;
+
+  /// Guarda a cobertura e repassa as células ao gateway, que refaz a inscrição
+  /// do `20001` (feature 027). Relay que conectar depois já nasce com elas.
+  @override
+  Future<void> applyCoverage(DriverCoverage? coverage) async {
+    if (_disposed) return;
+    _coverage = coverage;
+    await _gateway.setRideRequestCells(coverage?.cells);
+  }
 
   /// Estado atual de cada relay, em ordem de inclusão.
   @override
@@ -292,7 +307,7 @@ class RelayService implements RelayConnection {
   void _listenToIncoming() {
     _incoming?.cancel();
     _incoming = _gateway
-        .subscribe(kinds: subscriptionKinds)
+        .subscribe(kinds: subscriptionKinds, rideRequestCells: _coverage?.cells)
         .listen(_handleIncoming);
   }
 

@@ -30,11 +30,25 @@ class FakeRelayGateway implements RelayGateway {
   Future<void> probe(String relayUrl) async =>
       probes.update(relayUrl, (n) => n + 1, ifAbsent: () => 1);
 
+  /// Células pedidas na última [subscribe] (nulas = sem `20001`).
+  List<String>? subscribedCells;
+
+  /// Cada chamada de [setRideRequestCells], em ordem.
+  final List<List<String>?> cellsCalls = [];
+
   @override
-  Stream<IncomingEvent> subscribe({required List<int> kinds}) {
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  }) {
     subscribeCalls++;
+    subscribedCells = rideRequestCells;
     return _events.stream;
   }
+
+  @override
+  Future<void> setRideRequestCells(List<String>? cells) async =>
+      cellsCalls.add(cells);
 
   @override
   Stream<PublishOutcome> publish(

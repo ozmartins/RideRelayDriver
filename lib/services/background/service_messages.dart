@@ -1,3 +1,4 @@
+import '../../domain/driver_coverage.dart';
 import '../../domain/relay.dart';
 import '../../domain/service_state.dart';
 import '../relay_gateway.dart';
@@ -68,6 +69,11 @@ sealed class ServiceMessage {
         'incoming' => ServiceIncoming(
           relayUrl: map['relayUrl'] as String,
           payload: Map<String, dynamic>.from(map['payload'] as Map),
+        ),
+        'coverage' => ServiceSetCoverage(
+          map['coverage'] == null
+              ? null
+              : DriverCoverage.fromJson(map['coverage']),
         ),
         'stop' => const ServiceStop(),
         _ => null,
@@ -269,4 +275,18 @@ class ServiceStop extends ServiceMessage {
   String get type => 'stop';
   @override
   Map<String, dynamic> body() => {};
+}
+
+/// UI→S: a cobertura geográfica do motorista online (feature 027), ou `null`
+/// ao ficar offline. O serviço a guarda **só em memória** — nunca no
+/// `ServiceStateStore`, em log ou em notificação (constituição 2.18.0) — e a usa
+/// para pedir o `20001` das células certas e para decidir notificar com o
+/// mesmo corte por raio da interface.
+class ServiceSetCoverage extends ServiceMessage {
+  const ServiceSetCoverage(this.coverage);
+  final DriverCoverage? coverage;
+  @override
+  String get type => 'coverage';
+  @override
+  Map<String, dynamic> body() => {'coverage': coverage?.toJson()};
 }

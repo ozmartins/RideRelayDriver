@@ -23,6 +23,10 @@ class NostrRelayGateway implements RelayGateway {
   final Map<String, nostr.Nostr> _instances = {};
   final Map<String, StreamSubscription<nostr.NostrEvent>> _subscriptions = {};
 
+  /// A inscrição aberta em cada relay, para poder fechá-la (`CLOSE`) ao trocar
+  /// as células do `20001`.
+  final Map<String, nostr.NostrEventsStream> _streams = {};
+
   /// Sondas de vivacidade aguardando qualquer mensagem do relay.
   final Map<String, Completer<void>> _probes = {};
   final StreamController<IncomingEvent> _incoming =
@@ -39,6 +43,7 @@ class NostrRelayGateway implements RelayGateway {
   final Map<String, Object> _attempts = {};
 
   List<int> _kinds = const [domain.NostrEvent.kindRideRequest];
+  List<String>? _cells;
   bool _subscribing = false;
 
   @override
@@ -111,6 +116,7 @@ class NostrRelayGateway implements RelayGateway {
     _probes
         .remove(relayUrl)
         ?.completeError(StateError('conexão com $relayUrl encerrada'));
+    _streams.remove(relayUrl);
     await _subscriptions.remove(relayUrl)?.cancel();
     final instance = _instances.remove(relayUrl);
     if (instance == null) return;
@@ -169,11 +175,69 @@ class NostrRelayGateway implements RelayGateway {
   }
 
   @override
-  Stream<IncomingEvent> subscribe({required List<int> kinds}) {
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  }) {
     _kinds = kinds;
+    _cells = rideRequestCells;
     _subscribing = true;
     _instances.forEach(_startSubscription);
     return _incoming.stream;
+  }
+
+  @override
+  Future<void> setRideRequestCells(List<String>? cells) async {
+    if (_sameCells(_cells, cells)) return;
+    _cells = cells;
+    if (!_subscribing) return;
+    // Refaz a inscrição de cada relay conectado: fecha a anterior (`CLOSE`) e
+    // abre outra com as células novas. Eventos repetidos que o relay devolver
+    // na nova inscrição são deduplicados por `id` adiante.
+    for (final entry in _instances.entries.toList()) {
+      await _stopSubscription(entry.key);
+      _startSubscription(entry.key, entry.value);
+    }
+  }
+
+  static bool _sameCells(List<String>? a, List<String>? b) {
+    if (a == null || b == null) return a == b;
+    return a.length == b.length && a.toSet().containsAll(b);
+  }
+
+  Future<void> _stopSubscription(String relayUrl) async {
+    _streams.remove(relayUrl)?.close();
+    await _subscriptions.remove(relayUrl)?.cancel();
+  }
+
+  /// Os filtros do `REQ` (emenda 27 do contrato): os kinds consumidos, exceto o
+  /// `20001`, num filtro sempre presente; o `20001` num filtro à parte, com o
+  /// `#g` das [cells], só quando há células (motorista online). Todos com o
+  /// marcador `#t` e `limit: 50`. Vazio se não há nada a pedir.
+  static List<nostr.NostrFilter> buildFilters(
+    List<int> kinds,
+    List<String>? cells,
+  ) {
+    final outros = [
+      for (final k in kinds)
+        if (k != domain.NostrEvent.kindRideRequest) k,
+    ];
+    final querSolicitacoes = kinds.contains(domain.NostrEvent.kindRideRequest);
+    return [
+      if (outros.isNotEmpty)
+        // Filtro `#t` do contrato (emenda 01): sem ele, a inscrição traz o
+        // tráfego público da rede inteira nos kinds pedidos. `limit: 50`
+        // (emenda 02) bota um teto no histórico; sem `since`, que o passageiro
+        // não pode replicar sem ficar cada vez mais velho a cada reconexão.
+        nostr.NostrFilter(kinds: outros, t: const [prototypeMarker], limit: 50),
+      if (querSolicitacoes && cells != null && cells.isNotEmpty)
+        nostr.NostrFilter(
+          kinds: const [domain.NostrEvent.kindRideRequest],
+          t: const [prototypeMarker],
+          additionalFilters: {'#g': cells},
+          limit: 50,
+        ),
+    ];
   }
 
   @override
@@ -237,25 +301,15 @@ class NostrRelayGateway implements RelayGateway {
   void _startSubscription(String relayUrl, nostr.Nostr instance) {
     if (_subscriptions.containsKey(relayUrl)) return;
 
-    final request = nostr.NostrRequest(
-      filters: [
-        nostr.NostrFilter(
-          kinds: _kinds,
-          // Filtro `#t` do contrato (emenda 01): sem ele, a inscrição
-          // traz o tráfego público da rede inteira nos kinds pedidos. `limit: 50`
-          // (emenda 02) bota um teto no histórico; sem `since`, que o
-          // passageiro não pode replicar sem ficar cada vez mais velho a cada
-          // reconexão.
-          t: const [prototypeMarker],
-          limit: 50,
-        ),
-      ],
-    );
+    final filtros = buildFilters(_kinds, _cells);
+    if (filtros.isEmpty) return;
+    final request = nostr.NostrRequest(filters: filtros);
 
     final stream = instance.services.relays.startEventsSubscription(
       request: request,
       relays: [relayUrl],
     );
+    _streams[relayUrl] = stream;
 
     _subscriptions[relayUrl] = stream.stream.listen(
       (event) {

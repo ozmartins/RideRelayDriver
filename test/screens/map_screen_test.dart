@@ -6,6 +6,7 @@ import 'package:driver/domain/active_ride.dart';
 import 'package:driver/domain/driver_position.dart';
 import 'package:driver/domain/driver_profile.dart';
 import 'package:driver/domain/driver_ride_status.dart';
+import 'package:driver/domain/geohash.dart';
 import 'package:driver/domain/identity.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/payment_method.dart';
@@ -109,7 +110,17 @@ class FakeGateway implements RelayGateway {
   Future<void> probe(String relayUrl) async {}
 
   @override
-  Stream<IncomingEvent> subscribe({required List<int> kinds}) => _events.stream;
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  }) => _events.stream;
+
+  /// Cada chamada de [setRideRequestCells], em ordem (feature 027).
+  final celulasPedidas = <List<String>?>[];
+
+  @override
+  Future<void> setRideRequestCells(List<String>? cells) async =>
+      celulasPedidas.add(cells);
 
   @override
   Stream<PublishOutcome> publish(
@@ -279,6 +290,7 @@ Map<String, dynamic> solicitacaoAssinada({
   String payment = 'pix',
   Identity? autor,
   Object? reputacao,
+  List<List<String>>? tags,
 }) {
   final keys = autor == null
       ? nostr.Nostr.instance.services.keys.generateKeyPair()
@@ -296,7 +308,7 @@ Map<String, dynamic> solicitacaoAssinada({
             'reputacao': reputacao,
           }),
     keyPairs: keys,
-    tags: tagsDeSolicitacao(lat: originLat, lon: originLon),
+    tags: tags ?? tagsDeSolicitacao(lat: originLat, lon: originLon),
   );
   return {
     'id': event.id,
@@ -535,6 +547,7 @@ void main() {
     await relayService.connectAll(const [Relay(url: 'wss://a.test')]);
     final eventFeed = EventFeed(
       incoming: relayService.incoming,
+      coverage: () => relayService.coverage,
       acceptedKinds: const {
         NostrEvent.kindRideRequest,
         NostrEvent.kindQuoteAccepted,
@@ -4999,6 +5012,169 @@ void main() {
 
       expect(find.text(mensagem), findsOneWidget);
     });
+  });
+  group('MapScreen — recorte geográfico das solicitações (feature 027, US1)', () {
+    // A posição de teste é (-28.935, -49.49): Araranguá, raio padrão de 10 km.
+    Future<({FakeGateway gateway, EventFeed eventFeed})> ficarOnline(
+      WidgetTester tester,
+    ) async {
+      final service = FakeLocationService();
+      final ambiente = await montar(
+        tester,
+        locationService: service,
+        routeDistanceService: FakeRouteDistanceService(
+          resultados: [1000, 10000],
+        ),
+      );
+      service.emitir(posicaoDeTeste());
+      await tester.pump();
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      return (gateway: ambiente.gateway, eventFeed: ambiente.eventFeed);
+    }
+
+    Future<void> chega(
+      WidgetTester tester,
+      FakeGateway gateway,
+      Map<String, dynamic> payload,
+    ) async {
+      gateway.emitir(IncomingEvent(relayUrl: 'wss://a.test', payload: payload));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('a ~3 km do motorista online: abre a modal e entra na lista', (
+      tester,
+    ) async {
+      final a = await ficarOnline(tester);
+      final gateway = a.gateway;
+
+      await chega(tester, gateway, solicitacaoAssinada(originLat: -28.908));
+
+      expect(find.text('Solicitação de corrida'), findsOneWidget);
+      expect(a.eventFeed.events, hasLength(1));
+    });
+
+    testWidgets(
+      'de São Paulo: não abre modal e não entra na lista de eventos',
+      (tester) async {
+        // O dublê do gateway entrega tudo, ignorando o `#g`, como um relay que
+        // não respeita o filtro (SC-003).
+        final a = await ficarOnline(tester);
+        final gateway = a.gateway;
+
+        await chega(
+          tester,
+          gateway,
+          solicitacaoAssinada(originLat: -23.5505, originLon: -46.6333),
+        );
+
+        expect(find.text('Solicitação de corrida'), findsNothing);
+        expect(a.eventFeed.events, isEmpty);
+        expect(a.eventFeed.discardedOutOfCoverageCount, 1);
+      },
+    );
+
+    testWidgets(
+      'sem tag g: não abre modal, mesmo com a origem dentro do raio',
+      (tester) async {
+        final a = await ficarOnline(tester);
+        final gateway = a.gateway;
+
+        await chega(
+          tester,
+          gateway,
+          solicitacaoAssinada(originLat: -28.908, tags: [prototypeMarkerTag]),
+        );
+
+        expect(find.text('Solicitação de corrida'), findsNothing);
+        expect(a.eventFeed.events, isEmpty);
+      },
+    );
+
+    testWidgets('g incoerente (célula de outra cidade): não abre modal', (
+      tester,
+    ) async {
+      final a = await ficarOnline(tester);
+      final gateway = a.gateway;
+
+      await chega(
+        tester,
+        gateway,
+        solicitacaoAssinada(
+          originLat: -28.908,
+          tags: tagsDeSolicitacao(lat: -23.5505, lon: -46.6333),
+        ),
+      );
+
+      expect(find.text('Solicitação de corrida'), findsNothing);
+      expect(a.eventFeed.events, isEmpty);
+    });
+
+    testWidgets('g na célula, mas origem a ~15 km: o filtro exato descarta', (
+      tester,
+    ) async {
+      final a = await ficarOnline(tester);
+      final gateway = a.gateway;
+
+      await chega(tester, gateway, solicitacaoAssinada(originLat: -28.80));
+
+      expect(find.text('Solicitação de corrida'), findsNothing);
+      expect(a.eventFeed.events, isEmpty);
+    });
+
+    testWidgets('offline nada abre, mesmo dentro do raio', (tester) async {
+      final service = FakeLocationService();
+      final ambiente = await montar(tester, locationService: service);
+      service.emitir(posicaoDeTeste());
+      await tester.pump();
+
+      await chega(tester, ambiente.gateway, solicitacaoAssinada());
+
+      expect(find.text('Solicitação de corrida'), findsNothing);
+    });
+
+    testWidgets(
+      'ficar online pede as células ao gateway; ficar offline as retira',
+      (tester) async {
+        final a = await ficarOnline(tester);
+        final gateway = a.gateway;
+
+        final pedidas = gateway.celulasPedidas.last!;
+        expect(pedidas.length, lessThanOrEqualTo(9));
+        expect(pedidas, isNotEmpty);
+        expect(
+          pedidas,
+          contains(Geohash.encode(-28.935, -49.49, pedidas.first.length)),
+        );
+
+        await tester.tap(find.byType(Switch));
+        await tester.pump();
+
+        expect(gateway.celulasPedidas.last, isNull);
+      },
+    );
+
+    testWidgets(
+      'o raio e a posição de referência não saem em evento publicado',
+      (tester) async {
+        final a = await ficarOnline(tester);
+        final gateway = a.gateway;
+        await chega(tester, gateway, solicitacaoAssinada(originLat: -28.908));
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Enviar orçamento'));
+        await tester.pumpAndSettle();
+
+        expect(gateway.publicados, hasLength(1));
+        final texto =
+            '${gateway.publicados.single.content}'
+            '${gateway.publicados.single.tags}';
+        expect(texto, isNot(contains('-28.935')));
+        expect(texto, isNot(contains('-49.49')));
+        expect(texto, isNot(contains('raio')));
+        expect(texto, isNot(contains('"g"')));
+      },
+    );
   });
 }
 

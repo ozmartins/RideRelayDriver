@@ -141,6 +141,9 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   late final EventFeed _feed = EventFeed(
     incoming: _relayService.incoming,
     acceptedKinds: driverConsumedKinds,
+    // Feature 027: o recorte geográfico do `20001` usa a cobertura que a tela
+    // entrega à conexão ao ficar online.
+    coverage: () => _relayService.coverage,
   );
   late final CadastroStore _cadastroStore =
       widget.cadastroStore ?? SqfliteCadastroStore();

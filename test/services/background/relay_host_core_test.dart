@@ -9,6 +9,7 @@ import 'package:driver/services/background/relay_host_core.dart';
 import 'package:driver/services/background/service_messages.dart';
 import 'package:driver/services/background/service_state_store.dart';
 import 'package:driver/services/consumed_kinds.dart';
+import 'package:driver/services/prototype_marker.dart';
 import 'package:driver/services/relay_gateway.dart';
 import 'package:driver/services/relay_repository.dart';
 import 'package:driver/services/relay_service.dart';
@@ -600,4 +601,155 @@ void main() {
       });
     },
   );
+  group('RelayHostCore — cobertura geográfica (feature 027)', () {
+    final cobertura = DriverCoverage.around(
+      lat: origemDeTesteLat,
+      lon: origemDeTesteLon,
+      radiusKm: 10,
+    );
+
+    Map<String, dynamic> solicitacaoEm(
+      double lat,
+      double lon, {
+      List<List<String>>? tags,
+    }) => signedPayload(
+      kind: NostrEvent.kindRideRequest,
+      content:
+          '{"origin":{"lat":$lat,"lon":$lon},'
+          '"destination":{"lat":$lat,"lon":$lon},"payment":"pix"}',
+      tags: tags ?? tagsDeSolicitacao(lat: lat, lon: lon),
+    );
+
+    setUp(() => iniciar(estado: online));
+
+    test(
+      'ServiceSetCoverage guarda a cobertura e a aplica à conexão',
+      () async {
+        daInterface(ServiceSetCoverage(cobertura));
+        await pumpEventQueue();
+
+        expect(core.coverage, cobertura);
+        expect(gateway.cellsCalls, [cobertura.cells]);
+      },
+    );
+
+    test('ServiceSetCoverage(null) retira a cobertura e as células', () async {
+      daInterface(ServiceSetCoverage(cobertura));
+      await pumpEventQueue();
+
+      daInterface(const ServiceSetCoverage(null));
+      await pumpEventQueue();
+
+      expect(core.coverage, isNull);
+      expect(gateway.cellsCalls.last, isNull);
+    });
+
+    test('solicitação dentro do raio é repassada e notifica', () async {
+      final perto = solicitacaoEm(origemDeTesteLat + 0.03, origemDeTesteLon);
+
+      chega(perto);
+      await pumpEventQueue();
+
+      expect(enviadas<ServiceIncoming>(), hasLength(1));
+      expect(notifier.notified, [perto['id']]);
+    });
+
+    test('fora do raio, sem g ou com g fora das células: nada é repassado nem notifica', () async {
+      // São Paulo (g e origem lá).
+      chega(solicitacaoEm(-23.5505, -46.6333));
+      // Sem g, origem em Araranguá.
+      chega(
+        solicitacaoEm(
+          origemDeTesteLat,
+          origemDeTesteLon,
+          tags: [prototypeMarkerTag],
+        ),
+      );
+      // g de São Paulo, origem em Araranguá.
+      chega(
+        solicitacaoEm(
+          origemDeTesteLat,
+          origemDeTesteLon,
+          tags: tagsDeSolicitacao(lat: -23.5505, lon: -46.6333),
+        ),
+      );
+      // g na célula, origem a ~15 km: fora dos 10 km.
+      chega(solicitacaoEm(origemDeTesteLat + 0.135, origemDeTesteLon));
+      await pumpEventQueue();
+
+      expect(enviadas<ServiceIncoming>(), isEmpty);
+      expect(notifier.notified, isEmpty);
+    });
+
+    test('o descarte geográfico vem antes da deduplicação', () async {
+      final saoPaulo = solicitacaoEm(-23.5505, -46.6333);
+
+      chega(saoPaulo);
+      await pumpEventQueue();
+      expect(enviadas<ServiceIncoming>(), isEmpty);
+
+      // O motorista ficou offline e online em São Paulo.
+      daInterface(
+        ServiceSetCoverage(
+          DriverCoverage.around(lat: -23.5505, lon: -46.6333, radiusKm: 10),
+        ),
+      );
+      await pumpEventQueue();
+      chega(saoPaulo);
+      await pumpEventQueue();
+
+      expect(enviadas<ServiceIncoming>(), hasLength(1));
+      expect(core.discardedDuplicateCount, 0);
+    });
+
+    test('sem cobertura nada é aceito para notificar', () async {
+      daInterface(const ServiceSetCoverage(null));
+      await pumpEventQueue();
+
+      chega(solicitacao());
+      await pumpEventQueue();
+
+      expect(notifier.notified, isEmpty);
+    });
+
+    test('os demais kinds não sofrem o recorte', () async {
+      final aceitacao = signedPayload(
+        kind: NostrEvent.kindQuoteAccepted,
+        content: 'x',
+        tags: tagsDeSolicitacao(lat: -23.5505, lon: -46.6333),
+      );
+
+      chega(aceitacao);
+      await pumpEventQueue();
+
+      expect(enviadas<ServiceIncoming>(), hasLength(1));
+    });
+
+    test(
+      'a cobertura nunca é gravada em armazenamento nem enviada à interface',
+      () async {
+        daInterface(ServiceSetCoverage(cobertura));
+        daInterface(ServiceStateUpdate(online.copyWith(appInForeground: true)));
+        await pumpEventQueue();
+        chega(solicitacaoEm(origemDeTesteLat + 0.03, origemDeTesteLon));
+        await pumpEventQueue();
+
+        final lat = origemDeTesteLat.toString();
+        final lon = origemDeTesteLon.toString();
+        for (final valor in store.values.values) {
+          expect(valor, isNot(contains(lat)));
+          expect(valor, isNot(contains(lon)));
+          expect(valor, isNot(contains('raio')));
+        }
+        // O que o serviço envia à interface: nada além do evento repassado.
+        for (final mensagem in canais.service.sent) {
+          if (mensagem is ServiceIncoming) continue;
+          final texto = mensagem.toMap().toString();
+          expect(texto, isNot(contains(lat)), reason: mensagem.type);
+          expect(texto, isNot(contains(lon)), reason: mensagem.type);
+        }
+        expect(notifier.notified.toString(), isNot(contains(lat)));
+      },
+    );
+  });
 }

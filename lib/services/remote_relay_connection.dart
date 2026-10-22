@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import '../domain/relay.dart';
 import 'background/message_channel.dart';
@@ -47,6 +48,7 @@ class RemoteRelayConnection implements RelayConnection {
       StreamController<void>.broadcast();
 
   List<Relay> _relays = const [];
+  DriverCoverage? _coverage;
   bool _attached = false;
   bool _disposed = false;
   bool _foreground = true;
@@ -67,6 +69,19 @@ class RemoteRelayConnection implements RelayConnection {
   /// online — o estado que ele guardou antes de a interface fechar (FR-012).
   bool get serviceOnline => _serviceOnline;
   bool _serviceOnline = false;
+
+  @override
+  DriverCoverage? get coverage => _coverage;
+
+  /// Manda a cobertura ao serviço, que é quem assina o `20001` nos relays. Na
+  /// fila, vale a cobertura de quando a mensagem sai, não a de quando foi
+  /// pedida.
+  @override
+  Future<void> applyCoverage(DriverCoverage? coverage) async {
+    if (_disposed) return;
+    _coverage = coverage;
+    _whenAttached(() => _channel.send(ServiceSetCoverage(_coverage)));
+  }
 
   @override
   List<Relay> get relays => List.unmodifiable(_relays);
@@ -135,6 +150,9 @@ class RemoteRelayConnection implements RelayConnection {
         for (final comando in fila) {
           comando();
         }
+        // Serviço reiniciado: ele não guarda a cobertura em disco, então a
+        // interface a devolve. Se a fila já a mandou, o reenvio é inócuo.
+        if (_coverage != null) _channel.send(ServiceSetCoverage(_coverage));
         _attachedEvents.add(null);
       case ServiceRelaysChanged(:final relays):
         _relays = relays;
@@ -146,6 +164,7 @@ class RemoteRelayConnection implements RelayConnection {
       // Só o serviço recebe estas.
       case ServiceHello() ||
           ServiceStateUpdate() ||
+          ServiceSetCoverage() ||
           ServiceConnectAll() ||
           ServiceAddRelay() ||
           ServiceRemoveRelay() ||

@@ -69,8 +69,13 @@ class _Gateway implements RelayGateway {
   Future<void> probe(String relayUrl) async {}
 
   @override
-  Stream<IncomingEvent> subscribe({required List<int> kinds}) =>
-      const Stream.empty();
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  }) => const Stream.empty();
+
+  @override
+  Future<void> setRideRequestCells(List<String>? cells) async {}
 
   @override
   Stream<PublishOutcome> publish(

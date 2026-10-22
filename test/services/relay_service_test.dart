@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:driver/domain/driver_coverage.dart';
 import 'package:driver/domain/nostr_event.dart';
 import 'package:driver/domain/relay.dart';
 import 'package:driver/services/relay_connection.dart';
@@ -60,7 +61,23 @@ class FakeGateway implements RelayGateway {
   }
 
   @override
-  Stream<IncomingEvent> subscribe({required List<int> kinds}) => _events.stream;
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  }) {
+    subscribedCells = rideRequestCells;
+    return _events.stream;
+  }
+
+  /// Células pedidas na última [subscribe] (nulas = sem `20001`).
+  List<String>? subscribedCells;
+
+  /// Cada chamada de [setRideRequestCells], em ordem.
+  final List<List<String>?> cellsCalls = [];
+
+  @override
+  Future<void> setRideRequestCells(List<String>? cells) async =>
+      cellsCalls.add(cells);
 
   @override
   Stream<PublishOutcome> publish(
@@ -593,6 +610,76 @@ void main() {
         expect(mensagem.toLowerCase(), isNot(contains('exception')));
         expect(mensagem.toLowerCase(), isNot(contains('errno')));
       }
+    });
+  });
+  group('RelayService — cobertura geográfica (feature 027)', () {
+    final cobertura = DriverCoverage.around(
+      lat: -28.9298,
+      lon: -49.4753,
+      radiusKm: 10,
+    );
+
+    test('sem cobertura, a inscrição não pede o 20001', () async {
+      final gateway = FakeGateway();
+      final service = RelayService(gateway);
+      addTearDown(service.dispose);
+
+      await service.connectAll(const [Relay(url: damus)]);
+
+      expect(service.coverage, isNull);
+      expect(gateway.subscribedCells, isNull);
+    });
+
+    test(
+      'applyCoverage guarda a cobertura e repassa as células ao gateway',
+      () async {
+        final gateway = FakeGateway();
+        final service = RelayService(gateway);
+        addTearDown(service.dispose);
+        await service.connectAll(const [Relay(url: damus)]);
+
+        await service.applyCoverage(cobertura);
+
+        expect(service.coverage, cobertura);
+        expect(gateway.cellsCalls, [cobertura.cells]);
+      },
+    );
+
+    test('applyCoverage(null) retira as células', () async {
+      final gateway = FakeGateway();
+      final service = RelayService(gateway);
+      addTearDown(service.dispose);
+      await service.connectAll(const [Relay(url: damus)]);
+      await service.applyCoverage(cobertura);
+
+      await service.applyCoverage(null);
+
+      expect(service.coverage, isNull);
+      expect(gateway.cellsCalls, [cobertura.cells, null]);
+    });
+
+    test(
+      'uma nova rodada de conexão já inscreve com as células vigentes',
+      () async {
+        final gateway = FakeGateway();
+        final service = RelayService(gateway);
+        addTearDown(service.dispose);
+        await service.applyCoverage(cobertura);
+
+        await service.connectAll(const [Relay(url: damus)]);
+
+        expect(gateway.subscribedCells, cobertura.cells);
+      },
+    );
+
+    test('depois do dispose, applyCoverage não chega ao gateway', () async {
+      final gateway = FakeGateway();
+      final service = RelayService(gateway);
+      await service.dispose();
+
+      await service.applyCoverage(cobertura);
+
+      expect(gateway.cellsCalls, isEmpty);
     });
   });
 }

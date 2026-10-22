@@ -59,7 +59,20 @@ abstract class RelayGateway {
   Stream<String> get connectionLost;
 
   /// Inscreve-se para receber eventos dos relays conectados (*subscription*).
-  Stream<IncomingEvent> subscribe({required List<int> kinds});
+  ///
+  /// [kinds] inclui, se for o caso, o `20001`. Este só é pedido — num filtro à
+  /// parte, com `#g` — quando [rideRequestCells] não é nulo (emenda 27 do
+  /// contrato): sem células (motorista offline), o gateway não pede solicitações.
+  /// Os demais kinds são sempre pedidos.
+  Stream<IncomingEvent> subscribe({
+    required List<int> kinds,
+    List<String>? rideRequestCells,
+  });
+
+  /// Troca as células do filtro `#g` do `20001` (ou o retira, com `null`) sem
+  /// perder a inscrição dos outros kinds: refaz a inscrição de cada relay
+  /// conectado e vale também para os que conectarem depois.
+  Future<void> setRideRequestCells(List<String>? cells);
 
   /// Publica um evento já assinado, reportando o resultado por relay.
   ///

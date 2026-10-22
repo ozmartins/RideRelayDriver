@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:driver/domain/driver_coverage.dart';
 import 'package:driver/domain/driver_ride_status.dart';
 import 'package:driver/domain/relay.dart';
 import 'package:driver/domain/service_state.dart';
@@ -26,6 +27,12 @@ const _relays = [
     lastError: 'sem resposta',
   ),
 ];
+
+final _cobertura = DriverCoverage.around(
+  lat: -28.9298,
+  lon: -49.4753,
+  radiusKm: 10,
+);
 
 final List<ServiceMessage> _todas = [
   const ServiceReady(),
@@ -60,6 +67,8 @@ final List<ServiceMessage> _todas = [
   const ServiceRelaysChanged(_relays),
   const ServiceIncoming(relayUrl: 'wss://a.test', payload: _payload),
   const ServiceStop(),
+  ServiceSetCoverage(_cobertura),
+  const ServiceSetCoverage(null),
 ];
 
 void main() {
@@ -129,6 +138,41 @@ void main() {
         expect(resultado.outcomes[1].message, 'blocked');
       },
     );
+
+    test('ServiceSetCoverage preserva a cobertura, e também o null', () {
+      final com = ServiceMessage.fromMap(
+        ServiceSetCoverage(_cobertura).toMap(),
+      ) as ServiceSetCoverage;
+      expect(com.coverage, _cobertura);
+      expect(com.coverage!.cells, _cobertura.cells);
+
+      final sem = ServiceMessage.fromMap(
+        const ServiceSetCoverage(null).toMap(),
+      ) as ServiceSetCoverage;
+      expect(sem.coverage, isNull);
+      expect(ServiceSetCoverage(_cobertura).type, 'coverage');
+    });
+
+    test('ServiceSetCoverage malformada é ignorada sem erro', () {
+      for (final coverage in <Object?>[
+        'x',
+        <String, Object?>{},
+        {'lat': 'a', 'lon': 1, 'raio_km': 10},
+        {'lat': -28.9, 'lon': -49.4, 'raio_km': 0},
+        {'lat': -28.9, 'lon': -49.4, 'raio_km': 101},
+        {'lat': 95, 'lon': -49.4, 'raio_km': 10},
+      ]) {
+        expect(
+          ServiceMessage.fromMap({
+            't': 'coverage',
+            'v': 1,
+            'coverage': coverage,
+          }),
+          isNull,
+          reason: '$coverage',
+        );
+      }
+    });
 
     test('versão diferente é ignorada sem erro', () {
       final mapa = const ServiceHello(foreground: true).toMap()..['v'] = 2;

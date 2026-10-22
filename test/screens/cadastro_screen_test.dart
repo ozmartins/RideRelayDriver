@@ -55,10 +55,12 @@ class _Gravacoes {
     WidgetTester tester, {
     CadastroProgress? initial,
     String? erro,
+    bool Function()? motoristaOnline,
   }) => tester.pumpWidget(
     MaterialApp(
       home: CadastroScreen(
         initial: initial,
+        motoristaOnline: motoristaOnline,
         onSavePersonal: (d) async {
           chamadas++;
           pessoal = d;
@@ -481,6 +483,128 @@ void main() {
       expect(g.financeiro!.precoPorKm, 3.0);
       expect(find.text('Cadastro salvo'), findsOneWidget);
       expect(find.text('Dados do motorista'), findsOneWidget);
+    });
+  });
+  group('CadastroScreen — raio de atendimento (feature 027, US2)', () {
+    const rotulo = 'Raio de atendimento (km)';
+    const erroDoRaio = 'Informe um número inteiro de 1 a 100 km';
+    // Etapa 1: nome (TextField 0) e raio (TextField 1).
+    Finder campoRaio() => find.byType(TextField).at(1);
+
+    testWidgets('a etapa 1 mostra o campo, já preenchido com 10', (
+      tester,
+    ) async {
+      await _Gravacoes().monta(tester);
+
+      expect(find.text(rotulo), findsOneWidget);
+      expect(
+        tester.widget<TextField>(campoRaio()).controller!.text,
+        '$kRaioPadraoKm',
+      );
+    });
+
+    testWidgets(
+      'vazio, 0, 101, texto e decimal impedem avançar, com a mensagem dos limites',
+      (tester) async {
+        final g = _Gravacoes();
+        await g.monta(tester);
+        await _preencherEtapa1(tester);
+        expect(_botaoHabilitado(tester), isTrue);
+
+        for (final texto in ['', '0', '101', 'abc', '2,5', '-3']) {
+          await tester.enterText(campoRaio(), texto);
+          await tester.pumpAndSettle();
+
+          expect(_botaoHabilitado(tester), isFalse, reason: "'$texto'");
+          expect(
+            find.text(erroDoRaio),
+            texto.isEmpty ? findsNothing : findsOneWidget,
+            reason: "'$texto'",
+          );
+        }
+        expect(g.chamadas, 0);
+      },
+    );
+
+    for (final valor in [1, 100]) {
+      testWidgets('$valor passa, e o valor vai em DriverPersonalData', (
+        tester,
+      ) async {
+        final g = _Gravacoes();
+        await g.monta(tester);
+        await _preencherEtapa1(tester);
+
+        await tester.enterText(campoRaio(), '$valor');
+        await tester.pumpAndSettle();
+        expect(_botaoHabilitado(tester), isTrue);
+        await _tocarBotao(tester);
+
+        expect(g.pessoal!.raioAtendimentoKm, valor);
+      });
+    }
+
+    testWidgets('o raio com espaços nas pontas é aceito', (tester) async {
+      final g = _Gravacoes();
+      await g.monta(tester);
+      await _preencherEtapa1(tester);
+
+      await tester.enterText(campoRaio(), ' 15 ');
+      await tester.pumpAndSettle();
+      await _tocarBotao(tester);
+
+      expect(g.pessoal!.raioAtendimentoKm, 15);
+    });
+
+    testWidgets('editando, o campo traz o raio salvo', (tester) async {
+      await _Gravacoes().monta(
+        tester,
+        initial: CadastroProgress.fromProfile(
+          _perfil.copyWith(raioAtendimentoKm: 25),
+        ),
+      );
+
+      expect(tester.widget<TextField>(campoRaio()).controller!.text, '25');
+    });
+
+    testWidgets('editar o nome não zera o raio salvo', (tester) async {
+      final g = _Gravacoes();
+      await g.monta(
+        tester,
+        initial: CadastroProgress.fromProfile(
+          _perfil.copyWith(raioAtendimentoKm: 25),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).at(0), 'Outro Nome');
+      await tester.pumpAndSettle();
+      await _tocarBotao(tester);
+
+      expect(g.pessoal!.raioAtendimentoKm, 25);
+    });
+
+    testWidgets('com o motorista online, avisa que o novo raio vale depois', (
+      tester,
+    ) async {
+      await _Gravacoes().monta(tester, motoristaOnline: () => true);
+
+      expect(
+        find.textContaining('próxima vez que você ficar online'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('offline (ou sem a informação), não há aviso', (tester) async {
+      await _Gravacoes().monta(tester);
+      expect(
+        find.textContaining('próxima vez que você ficar online'),
+        findsNothing,
+      );
+
+      await _Gravacoes().monta(tester, motoristaOnline: () => false);
+      expect(
+        find.textContaining('próxima vez que você ficar online'),
+        findsNothing,
+      );
     });
   });
 }

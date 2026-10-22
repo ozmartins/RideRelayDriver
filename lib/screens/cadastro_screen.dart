@@ -23,7 +23,13 @@ class CadastroScreen extends StatefulWidget {
     required this.onSavePersonal,
     required this.onSaveVehicle,
     required this.onSaveFinancial,
+    this.motoristaOnline,
   });
+
+  /// Diz se o motorista está online agora (feature 027). Online, o raio de
+  /// atendimento que ele alterar só vale na próxima vez em que ficar online, e
+  /// a tela avisa. `null` = sem aviso (cadastro inicial e testes).
+  final bool Function()? motoristaOnline;
 
   /// O que já foi salvo, para pré-preencher e escolher a etapa em que o
   /// wizard abre ([CadastroProgress.nextStep], ou a primeira se completo).
@@ -48,6 +54,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   late final TextEditingController _placa;
   late final TextEditingController _precoPorKm;
   late final TextEditingController _ano;
+  late final TextEditingController _raio;
   String? _uf;
   String? _cidade;
 
@@ -81,6 +88,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
     _ano = TextEditingController(
       text: veiculo == null ? '' : veiculo.ano.toString(),
     );
+    // Pré-preenchido com o padrão, também no cadastro inicial (FR-003).
+    _raio = TextEditingController(
+      text: '${pessoal?.raioAtendimentoKm ?? kRaioPadraoKm}',
+    );
     _uf = pessoal?.uf;
     _cidade = pessoal?.cidade;
     _formasPagamento = {...?financeiro?.paymentMethods};
@@ -92,6 +103,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
       _placa,
       _precoPorKm,
       _ano,
+      _raio,
     ]) {
       controlador.addListener(_refresh);
     }
@@ -107,6 +119,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
       _placa,
       _precoPorKm,
       _ano,
+      _raio,
     ]) {
       controlador.dispose();
     }
@@ -131,12 +144,13 @@ class _CadastroScreenState extends State<CadastroScreen> {
   double? get _precoPorKmValido =>
       DriverProfile.parsePrecoPorKm(_precoPorKm.text);
   int? get _anoValido => DriverProfile.parseAnoVeiculo(_ano.text);
+  int? get _raioValido => DriverProfile.parseRaioKm(_raio.text);
 
   /// Cada etapa só habilita o envio quando **todos** os seus campos passam
   /// nas próprias regras (FR-002, FR-006 da feature 003; FR-002, FR-003 da
   /// feature 005).
   bool get _etapaValida => switch (_etapa) {
-    0 => _nomeValido && _ufValida && _cidadeValida,
+    0 => _nomeValido && _ufValida && _cidadeValida && _raioValido != null,
     1 =>
       _marcaValida &&
           _modeloValido &&
@@ -172,6 +186,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
           nome: DriverProfile.normalizeTexto(_nome.text),
           uf: _uf!,
           cidade: _cidade!,
+          raioAtendimentoKm: _raioValido!,
         ),
       ),
       1 => await widget.onSaveVehicle(
@@ -254,6 +269,11 @@ class _CadastroScreenState extends State<CadastroScreen> {
         : Municipio.doEstado(_uf!);
     const estiloValor = _estiloValor;
     const seta = _seta;
+    // Online, o raio novo só vale na próxima vez que ficar online (FR-006).
+    final online = widget.motoristaOnline?.call() ?? false;
+    const avisoOnline =
+        ' Você está online: o novo raio vale a partir da próxima vez que '
+        'você ficar online.';
     return [
       TextField(
         controller: _nome,
@@ -319,6 +339,25 @@ class _CadastroScreenState extends State<CadastroScreen> {
         onChanged: _uf == null
             ? null
             : (cidade) => setState(() => _cidade = cidade),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _raio,
+        keyboardType: TextInputType.number,
+        maxLength: 3,
+        style: estiloValor,
+        decoration: _decoracaoCampo(
+          rotulo: 'Raio de atendimento (km)',
+          dica: 'Ex.: $kRaioPadraoKm',
+          ajuda:
+              'Distância máxima, em linha reta, da posição em que você '
+              'ficou online até o ponto de embarque. De $kRaioMinKm a '
+              '$kRaioMaxKm km.'
+              '${online ? avisoOnline : ''}',
+          erro: _raio.text.isEmpty || _raioValido != null
+              ? null
+              : 'Informe um número inteiro de $kRaioMinKm a $kRaioMaxKm km',
+        ).copyWith(counterText: ''),
       ),
     ];
   }

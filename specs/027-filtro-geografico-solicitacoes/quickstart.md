@@ -4,8 +4,9 @@ Os cenários 1–3 rodam sem aparelho. Os cenários 4–9 são o **roteiro de ex
 um relay local que imprime o que o app pede e uma ferramenta que publica as solicitações de teste; o app do passageiro
 só entra no passo final (variante B). Os cenários que falharem MUST ser relatados, não omitidos (constituição, gates).
 
-Situação em 2026-10-22: cenários 1–3 **executados** (3 está em `research.md`, R7); 4–9 **a executar** — o roteiro está
-pronto e a tabela de resultados, no fim, em branco.
+Situação em 2026-10-22: cenários 1–9 **executados na variante A** (relay local, `tool/publish_ride_request.dart`, emulador
+Pixel 6 API 34 com build de depuração; resultados na tabela do fim). A **variante B** (app do passageiro) ainda não foi
+executada: depende de a feature dele publicar a tag `g`.
 
 ## Pré-requisitos
 
@@ -203,13 +204,13 @@ Conferir, no terminal 1, que o `EVENT` do `20001` traz **três** tags `g` (5, 4 
 
 | Cenário | Data | Obtido | Passou? | Observações |
 |---|---|---|---|---|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | 2026-10-22 | ver `research.md` R7 | sim | três relays padrão |
-| 4 | | | | |
-| 5 | | | | |
-| 6 | | | | |
-| 7 | | | | |
-| 8 | | | | |
-| 9 | | | | |
+| 1 | 2026-10-22 | `flutter analyze` sem apontamentos; `flutter test` 906 testes, sem ignorados | sim | |
+| 2 | 2026-10-22 | `diff` dos vetores entre os dois repositórios sem saída | sim | o passageiro ainda não tem o teste que usa o arquivo |
+| 3 | 2026-10-22 | três relays padrão respeitam `#g` e honram `CLOSE` | sim | `research.md` R7 |
+| 4 | 2026-10-22 | 4.1 `REQ` com dois filtros (kinds sem `20001` + `20001` com `#g` de 9 células); 4.2 modal a ~3 km e notificação em segundo plano; 4.3 São Paulo: nada; 4.4 com o relay ignorando `#g`: São Paulo, sem `g`, `g` de São Paulo e 10,5 km não abrem modal; 4.7 offline: `REQ` sem o filtro do `20001` | sim | 4.4: o relay local em `--ignora-g` entrega o que casa com os `kinds`; não foi logada a entrega ao app, só a ausência de modal |
+| 5 | 2026-10-22 | raio 10: 9,5 km abre, 10,5 km não; raio 15 (precisão 4): origem a 11,3 km, logo além da borda da célula central, abre; raio 25 (precisão 3, `REQ` com células de 3 caracteres): 24 km abre, 26 km não | sim | |
+| 6 | 2026-10-22 | 6.1 instalação limpa mostra `10`; 6.2/6.3 inválidos bloqueiam o botão e `1`, `100`, `15` passam (o `0`, `101`, `abc`, `2,5`, `-3` e vazio testados no app); 6.4 migração em Android real: banco v5 do APK anterior → v6, coluna `raio_atendimento_km INTEGER NOT NULL DEFAULT 10`, linha com `10`, app abre direto na tela principal; 6.5 aviso de "próxima vez que ficar online" presente; 6.6/6.7 raio salvo 100→10 online: solicitação a 50 km ainda abre (cobertura antiga), depois de offline e online não abre e a de 3 km abre | sim, com um defeito | **Defeito**: o aviso de 6.5 aparece truncado na tela ("…Vo…", duas linhas de ajuda); o texto completo existe, só não cabe. A migração foi feita com linhas inseridas por SQL num banco v5 real criado pelo APK anterior (`sqlite3` do emulador 3.39.2), não pelo wizard antigo |
+| 7 | 2026-10-22 | 7.1 emulador a 30 km: solicitação perto de Araranguá abre; 7.2 perto do novo ponto não, e nenhum `REQ` novo; 7.3 offline: `REQ` sem `20001`; 7.4 online no novo ponto: `REQ` com células novas, perto de Araranguá não abre e perto do novo ponto abre; 7.5 localização desligada online: aviso "ficou offline porque a localização foi perdida" e `REQ` sem `#g`; localização desligada: nenhum `REQ` com `#g` | sim, com uma lacuna | **7.6 não observado**: com a localização desligada a tela de erro cobre o botão, e o toque não mostrou "É preciso ter uma localização válida para ficar online." (o aviso antigo continuou na tela); o app permaneceu offline e nenhum `REQ` com `#g` saiu. A mensagem específica fica coberta só pelo teste de tela |
+| 8 | 2026-10-22 | 8.1 em segundo plano, 3 km: notificação "Nova solicitação de corrida / Toque para ver", e o toque abre a modal; 8.2 São Paulo: nenhuma notificação de solicitação; 8.3 app removido dos recentes (serviço continuou em primeiro plano, mesmo processo): 3 km notifica e a modal abre; 8.4 São Paulo não notifica; 8.5 processo morto com `kill -9` (via `run-as`): o serviço reiniciou sozinho (novo pid), reconectou e pediu **só** o filtro sem `20001`; uma solicitação de 3 km publicada nesse intervalo **não** gerou notificação; ao abrir o app voltou online e o `REQ` com `#g` reapareceu | sim | 8.5 confirma o limite conhecido (R5): a solicitação publicada com o serviço sem cobertura se perdeu (o `20001` é efêmero). Reconexão do relay com o motorista online refez a inscrição com as mesmas células |
+| 9 | 2026-10-22 | 9.1 `logcat` (só o processo atual, desde 22:53): sem coordenadas da referência, sem raio; 9.2 o `EVENT` do app (orçamento `20002`) traz `content` cifrado e só as tags `t`, `e`, `p`; nenhum quadro do app contém a referência ou o raio; 9.3 notificação com texto genérico; 9.4 arquivos do app: a referência não aparece em lugar algum, `service_state` só tem online, formas de pagamento e estado da corrida, e o raio só existe em `cadastro_motorista.db` | sim | o `logcat` cobre só desde o último reinício do processo (o `kill` do 8.5 recomeçou o buffer do app); em `FlutterSharedPreferences.xml` há origem e destino de solicitações já orçadas, dado da corrida que já era guardado desde a feature 026, não a posição do motorista |
 | Variante B | | | | depende da feature do passageiro |

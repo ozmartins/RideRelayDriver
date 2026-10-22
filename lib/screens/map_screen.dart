@@ -379,8 +379,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Define a cobertura em uso (ou a descarta, com `null`).
+  ///
+  /// Também a entrega à conexão: a inscrição passa a pedir o `20001` só das
+  /// células dela (ou deixa de pedi-lo) e o `EventFeed` a usa para recortar.
   void _definirCobertura(DriverCoverage? cobertura) {
     _cobertura = cobertura;
+    unawaited(widget.relayService.applyCoverage(cobertura));
   }
 
   /// Cria a cobertura se o motorista está online sem ela e há posição e

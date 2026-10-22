@@ -272,7 +272,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
     // Online, o raio novo só vale na próxima vez que ficar online (FR-006).
     final online = widget.motoristaOnline?.call() ?? false;
     const avisoOnline =
-        ' Você está online: o novo raio vale a partir da próxima vez que '
+        'Você está online: o novo raio vale a partir da próxima vez que '
         'você ficar online.';
     return [
       TextField(
@@ -352,13 +352,28 @@ class _CadastroScreenState extends State<CadastroScreen> {
           ajuda:
               'Distância máxima, em linha reta, da posição em que você '
               'ficou online até o ponto de embarque. De $kRaioMinKm a '
-              '$kRaioMaxKm km.'
-              '${online ? avisoOnline : ''}',
+              '$kRaioMaxKm km.',
           erro: _raio.text.isEmpty || _raioValido != null
               ? null
               : 'Informe um número inteiro de $kRaioMinKm a $kRaioMaxKm km',
         ).copyWith(counterText: ''),
       ),
+      // Fora do texto de ajuda do campo, que a identidade visual limita a duas
+      // linhas (`helperMaxLines`): o aviso é longo e não pode ser cortado.
+      if (online)
+        const Padding(
+          // 4 do recuo do campo + 16 do preenchimento interno, para alinhar com
+          // o texto de ajuda logo acima.
+          padding: EdgeInsets.only(left: 20, top: 8),
+          child: Text(
+            avisoOnline,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _texto,
+            ),
+          ),
+        ),
     ];
   }
 

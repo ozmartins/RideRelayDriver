@@ -67,6 +67,9 @@ class MoreScreen extends StatelessWidget {
                     onSavePersonal: onSavePersonal,
                     onSaveVehicle: onSaveVehicle,
                     onSaveFinancial: onSaveFinancial,
+                    // Online (com cobertura), o raio novo só vale na próxima vez
+                    // que ficar online (feature 027, FR-006).
+                    motoristaOnline: () => relayService.coverage != null,
                   ),
                 ),
               ),

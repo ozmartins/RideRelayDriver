@@ -2,6 +2,7 @@ import 'package:driver/domain/cadastro_progress.dart';
 import 'package:driver/domain/driver_profile.dart';
 import 'package:driver/domain/payment_method.dart';
 import 'package:driver/services/cadastro_store.dart';
+import 'package:driver/services/sqflite_cadastro_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_cadastro_store.dart';
@@ -158,6 +159,65 @@ void main() {
       );
 
       expect(store.loadProgress(), throwsA(isA<CorruptedDriverProfile>()));
+    });
+  });
+  group('CadastroStore — raio de atendimento (feature 027)', () {
+    test('o raio salvo na etapa 1 volta em loadProgress e load', () async {
+      final store = FakeCadastroStore(perfilValido());
+      final etapa1 = CadastroProgress.fromProfile(
+        perfilValido().copyWith(raioAtendimentoKm: 35),
+      ).personal!;
+
+      await store.savePersonal(etapa1);
+
+      expect((await store.loadProgress()).personal!.raioAtendimentoKm, 35);
+      expect((await store.load())!.raioAtendimentoKm, 35);
+    });
+
+    test('cadastro sem raio informado vale o padrão', () async {
+      final store = FakeCadastroStore(perfilValido());
+
+      expect((await store.load())!.raioAtendimentoKm, kRaioPadraoKm);
+    });
+
+    test('raio persistido inválido é cadastro corrompido', () async {
+      final store = FakeCadastroStore();
+      final progresso = CadastroProgress.fromProfile(perfilValido());
+      for (final raio in [0, -1, 101]) {
+        store.debugSetRaw(
+          progresso.copyWith(
+            personal: DriverPersonalData(
+              nome: 'Fulano da Silva',
+              uf: 'SC',
+              cidade: 'Araranguá',
+              raioAtendimentoKm: raio,
+            ),
+          ),
+        );
+
+        expect(
+          store.loadProgress,
+          throwsA(isA<CorruptedDriverProfile>()),
+          reason: '$raio',
+        );
+      }
+    });
+  });
+
+  group('SqfliteCadastroStore — migração do raio (feature 027)', () {
+    // O SQL real não roda aqui (nenhum teste toca SQLite): o ALTER TABLE e o
+    // DEFAULT são conferidos pelo cenário 6 do quickstart. Aqui fica só o que o
+    // texto da migração garante: a coluna é obrigatória e vale o padrão.
+    test('a migração acrescenta a coluna com o padrão do domínio', () {
+      expect(
+        SqfliteCadastroStore.sqlAdicionarRaio,
+        contains('ADD COLUMN raio_atendimento_km'),
+      );
+      expect(
+        SqfliteCadastroStore.sqlAdicionarRaio,
+        contains('NOT NULL DEFAULT $kRaioPadraoKm'),
+      );
+      expect(SqfliteCadastroStore.versaoDoBanco, 6);
     });
   });
 }

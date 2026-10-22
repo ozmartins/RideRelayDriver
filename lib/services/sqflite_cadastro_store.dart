@@ -27,13 +27,24 @@ class SqfliteCadastroStore implements CadastroStore {
   static const _tabelaVeiculo = 'driver_vehicle';
   static const _tabelaFinanceiro = 'driver_financial';
 
+  /// Versão do esquema. A 6 acrescenta o raio de atendimento à etapa 1 (feature
+  /// 027).
+  static const int versaoDoBanco = 6;
+
+  /// Migração 5 → 6: quem se cadastrou antes da feature ganha o raio padrão,
+  /// sem refazer o wizard (FR-003). Sem apagar nada.
+  static const String sqlAdicionarRaio =
+      'ALTER TABLE $_tabelaPessoal ADD COLUMN raio_atendimento_km '
+      'INTEGER NOT NULL DEFAULT $kRaioPadraoKm';
+
   static Future<void> _criarTabelas(sqflite.Database db) async {
     await db.execute('''
       CREATE TABLE $_tabelaPessoal (
         id     INTEGER PRIMARY KEY CHECK (id = 1),
         nome   TEXT NOT NULL,
         uf     TEXT NOT NULL,
-        cidade TEXT NOT NULL
+        cidade TEXT NOT NULL,
+        raio_atendimento_km INTEGER NOT NULL DEFAULT $kRaioPadraoKm
       )
     ''');
     await db.execute('''
@@ -62,7 +73,7 @@ class SqfliteCadastroStore implements CadastroStore {
       final caminho = p.join(await sqflite.getDatabasesPath(), databaseName);
       final db = await sqflite.openDatabase(
         caminho,
-        version: 5,
+        version: versaoDoBanco,
         onCreate: (db, version) => _criarTabelas(db),
         // Versão 5 (wizard em etapas): a tabela única `driver_profile` das
         // versões 1 a 4 dá lugar às três tabelas por etapa. O app está em
@@ -72,7 +83,10 @@ class SqfliteCadastroStore implements CadastroStore {
           if (oldVersion < 5) {
             await db.execute('DROP TABLE IF EXISTS driver_profile');
             await _criarTabelas(db);
+            // `_criarTabelas` já cria a coluna do raio.
+            return;
           }
+          if (oldVersion < 6) await db.execute(sqlAdicionarRaio);
         },
       );
       _db = db;

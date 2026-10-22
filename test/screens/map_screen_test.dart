@@ -982,6 +982,63 @@ void main() {
 
         expect(find.text('Solicitação de corrida'), findsOneWidget);
       });
+
+      testWidgets(
+        'chegou antes da posição e fica fora da nova referência: é descartada',
+        (tester) async {
+          final location = FakeLocationService();
+          final gateway = await montarComServico(
+            tester,
+            locationService: location,
+          );
+          await controlador.start();
+          gateway.emitir(
+            IncomingEvent(
+              relayUrl: 'wss://a.test',
+              // Passou pelo serviço com a referência antiga; a nova é Araranguá.
+              payload: solicitacaoAssinada(
+                originLat: -23.5505,
+                originLon: -46.6333,
+              ),
+            ),
+          );
+          await tester.pump();
+          await tester.pump();
+          servicoResponde(online: true);
+          await tester.pump();
+          await tester.pump(const Duration(seconds: 2));
+
+          location.emitir(posicaoDeTeste());
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.text('Você está online'), findsOneWidget);
+          expect(find.text('Solicitação de corrida'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        'retomada online cria a cobertura na primeira posição e a entrega à conexão',
+        (tester) async {
+          final location = FakeLocationService();
+          final gateway = await montarComServico(
+            tester,
+            locationService: location,
+          );
+          await controlador.start();
+          servicoResponde(online: true);
+          await tester.pump();
+          await tester.pump(const Duration(seconds: 2));
+          expect(gateway.celulasPedidas, isEmpty);
+
+          location.emitir(posicaoDeTeste());
+          await tester.pump();
+          await tester.pump();
+
+          expect(gateway.celulasPedidas, hasLength(1));
+          expect(gateway.celulasPedidas.single, isNotEmpty);
+        },
+      );
     });
 
     testWidgets('localização perdida durante a retomada: fica offline', (
@@ -5173,6 +5230,173 @@ void main() {
         expect(texto, isNot(contains('-49.49')));
         expect(texto, isNot(contains('raio')));
         expect(texto, isNot(contains('"g"')));
+      },
+    );
+  });
+  group('MapScreen — referência fixa e ciclo online/offline (feature 027, US3)', () {
+    // Posição de teste: (-28.935, -49.49). 0,27° de latitude ≈ 30 km.
+    DriverPosition em(double lat, double lon) => DriverPosition(
+      latitude: lat,
+      longitude: lon,
+      capturedAt: DateTime.now(),
+    );
+    final longe = em(-28.935 + 0.27, -49.49);
+
+    Future<void> chega(
+      WidgetTester tester,
+      FakeGateway gateway,
+      Map<String, dynamic> payload,
+    ) async {
+      gateway.emitir(IncomingEvent(relayUrl: 'wss://a.test', payload: payload));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Future<void> alternar(WidgetTester tester) async {
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+    }
+
+    Future<void> fechaModal(WidgetTester tester) async {
+      await tester.tap(find.text('Recusar corrida'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'a referência não acompanha o motorista: perto de A chega, perto do novo ponto não',
+      (tester) async {
+        final service = FakeLocationService();
+        final m = await montar(tester, locationService: service);
+        service.emitir(posicaoDeTeste());
+        await tester.pump();
+        await alternar(tester);
+        final celulas = m.gateway.celulasPedidas.last;
+
+        service.emitir(longe);
+        await tester.pump();
+
+        // Perto do novo ponto (a ~30 km de A): fora da cobertura.
+        await chega(
+          tester,
+          m.gateway,
+          solicitacaoAssinada(
+            originLat: longe.latitude,
+            originLon: longe.longitude,
+          ),
+        );
+        expect(find.text('Solicitação de corrida'), findsNothing);
+        // Perto de A: chega.
+        await chega(tester, m.gateway, solicitacaoAssinada(originLat: -28.908));
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
+        // E a inscrição nunca foi refeita por causa do deslocamento.
+        expect(m.gateway.celulasPedidas.last, celulas);
+        expect(m.gateway.celulasPedidas, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'offline e online de novo em outro ponto: a referência passa a ser o novo ponto',
+      (tester) async {
+        final service = FakeLocationService();
+        final m = await montar(tester, locationService: service);
+        service.emitir(posicaoDeTeste());
+        await tester.pump();
+        await alternar(tester);
+        service.emitir(longe);
+        await tester.pump();
+
+        await alternar(tester); // offline
+        expect(m.gateway.celulasPedidas.last, isNull);
+        await alternar(tester); // online no novo ponto
+        expect(m.gateway.celulasPedidas.last, isNotNull);
+
+        await chega(tester, m.gateway, solicitacaoAssinada(originLat: -28.908));
+        expect(find.text('Solicitação de corrida'), findsNothing);
+        await chega(
+          tester,
+          m.gateway,
+          solicitacaoAssinada(
+            originLat: longe.latitude,
+            originLon: longe.longitude,
+          ),
+        );
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'localização perdida online: fica offline, retira a cobertura e nada é aceito',
+      (tester) async {
+        final service = FakeLocationService();
+        final m = await montar(tester, locationService: service);
+        service.emitir(posicaoDeTeste());
+        await tester.pump();
+        await alternar(tester);
+        expect(m.gateway.celulasPedidas.last, isNotNull);
+
+        service.emitirErro(const LocationUnavailable(null));
+        await tester.pump();
+        await tester.pump();
+
+        expect(
+          find.text('Você ficou offline porque a localização foi perdida.'),
+          findsOneWidget,
+        );
+        expect(m.gateway.celulasPedidas.last, isNull);
+        expect(m.relayService.coverage, isNull);
+        await chega(tester, m.gateway, solicitacaoAssinada());
+        expect(find.text('Solicitação de corrida'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'sem posição válida não fica online, não cria cobertura nem pede o 20001',
+      (tester) async {
+        final m = await montar(tester);
+
+        await alternar(tester);
+
+        expect(
+          find.text('É preciso ter uma localização válida para ficar online.'),
+          findsOneWidget,
+        );
+        expect(m.gateway.celulasPedidas, isEmpty);
+        expect(m.relayService.coverage, isNull);
+        await chega(tester, m.gateway, solicitacaoAssinada());
+        expect(find.text('Solicitação de corrida'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'raio alterado com o motorista online só vale na próxima vez que ficar online',
+      (tester) async {
+        final service = FakeLocationService();
+        final perfil = ValueNotifier<DriverProfile?>(perfilComPreco(2.5));
+        final m = await montar(
+          tester,
+          locationService: service,
+          perfilAoVivo: perfil,
+        );
+        service.emitir(posicaoDeTeste());
+        await tester.pump();
+        await alternar(tester);
+        final coberturaAntes = m.relayService.coverage;
+        expect(coberturaAntes!.radiusKm, kRaioPadraoKm);
+
+        perfil.value = perfilComPreco(2.5).copyWith(raioAtendimentoKm: 50);
+        await tester.pump();
+
+        // A cobertura em uso não mudou: 12 km ao norte continua fora dos 10 km.
+        expect(m.relayService.coverage, same(coberturaAntes));
+        await chega(tester, m.gateway, solicitacaoAssinada(originLat: -28.827));
+        expect(find.text('Solicitação de corrida'), findsNothing);
+
+        await alternar(tester); // offline
+        await alternar(tester); // online: o raio novo entra
+        expect(m.relayService.coverage!.radiusKm, 50);
+        await chega(tester, m.gateway, solicitacaoAssinada(originLat: -28.827));
+        expect(find.text('Solicitação de corrida'), findsOneWidget);
+        await fechaModal(tester);
       },
     );
   });

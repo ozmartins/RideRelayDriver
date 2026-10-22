@@ -87,8 +87,8 @@ fixa e ciclo online/offline (P2).
 
 - [ ] T034 [P] Sonda de relay: `tool/probe_geohash_filter.dart` (assina e publica duas solicitações de teste — uma dentro da célula, uma fora —, abre a inscrição com `#g`, troca a inscrição e registra, por relay da lista padrão, se a de fora chegou, se a de dentro chegou e se o `CLOSE` foi aceito); executar o cenário 3 do quickstart, registrar o resultado **com data e método** no `research.md` (R7) e relatar relays que ignoram `#g`. Executar também os cenários 4–9 do quickstart com os dois apps; os que falharem são relatados, não omitidos.
 - [ ] T035 [P] Verificação de não vazamento da posição e do raio (quickstart, cenário 9): `adb logcat -s flutter` e captura de rede durante os cenários 4–8 — nenhuma coordenada de referência, raio ou célula fora do `REQ`; revisão do diff buscando `debugPrint`/`print` que as exibam; resultado registrado no PR.
-- [ ] T036 Atualizar o `CLAUDE.md` (seção Arquitetura e "Regras de domínio"): filtro geográfico, `DriverCoverage` só em memória, `ServiceSetCoverage`, conferência antes da deduplicação, emenda 27 e vetores de geohash. **Commit separado**, depois da mudança que descreve.
-- [ ] T037 Rodar `dart format lib test tool`, `flutter analyze` (sem apontamentos) e `flutter test` (inteira, sem teste ignorado); conferir que `test/fixtures/geohash_vectors.json` e o contrato são idênticos aos do passageiro (`diff`).
+- [x] T036 Atualizar o `CLAUDE.md` (seção Arquitetura e "Regras de domínio"): filtro geográfico, `DriverCoverage` só em memória, `ServiceSetCoverage`, conferência antes da deduplicação, emenda 27 e vetores de geohash. **Commit separado**, depois da mudança que descreve.
+- [x] T037 Rodar `dart format lib test tool` (em `tool/` o formatador só mexe em `probe_ride_route.dart`, alheio à feature, e foi revertido), `flutter analyze` (sem apontamentos) e `flutter test` (inteira, sem teste ignorado); conferir que `test/fixtures/geohash_vectors.json` e o contrato são idênticos aos do passageiro (`diff`).
 
 ## Dependências e ordem de execução
 

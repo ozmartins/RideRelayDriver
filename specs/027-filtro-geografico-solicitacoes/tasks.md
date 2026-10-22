@@ -17,9 +17,9 @@ fixa e ciclo online/offline (P2).
 
 ## Fase 1: Preparação (gates anteriores ao código)
 
-- [ ] T001 Emendar a constituição para 2.18.0 em `.specify/memory/constitution.md` (texto proposto no plan.md, "Verificação da constituição"): a exceção do serviço em segundo plano passa a admitir que a interface envie ao serviço, só em memória, a posição de referência e o raio, e que o serviço leia a `origin` do `content` do `20001`; atualizar o Sync Impact Report. Replicar com texto espelho em `../RideRelayPassenger/.specify/memory/constitution.md` (o serviço dele não recebe posição) e conferir os corpos por `diff`. Commit separado.
-- [ ] T002 Aplicar a emenda 27 em `specs/002-nostr-relay-connection/contracts/nostr-events.md` seguindo `contracts/emenda-27-tag-g.md` (linha 27 no histórico, célula do `20001` na tabela, seção "Tag `g` do `20001`", "Forma da inscrição" em dois filtros para o motorista, regra de recepção 8). Replicar idêntico em `../RideRelayPassenger/specs/002-nostr-relay-connection/contracts/nostr-events.md` e conferir os dois arquivos por `diff`. Commit separado, antes do código.
-- [ ] T003 Confirmar que nenhuma dependência nova é necessária (geohash em casa, R1; `dart_nostr` já tem `additionalFilters`); nada a acrescentar ao `pubspec.yaml`.
+- [x] T001 Emendar a constituição para 2.18.0 em `.specify/memory/constitution.md` (texto proposto no plan.md, "Verificação da constituição"): a exceção do serviço em segundo plano passa a admitir que a interface envie ao serviço, só em memória, a posição de referência e o raio, e que o serviço leia a `origin` do `content` do `20001`; atualizar o Sync Impact Report. Replicar com texto espelho em `../RideRelayPassenger/.specify/memory/constitution.md` (o serviço dele não recebe posição) e conferir os corpos por `diff`. Commit separado.
+- [x] T002 Aplicar a emenda 27 em `specs/002-nostr-relay-connection/contracts/nostr-events.md` seguindo `contracts/emenda-27-tag-g.md` (linha 27 no histórico, célula do `20001` na tabela, seção "Tag `g` do `20001`", "Forma da inscrição" em dois filtros para o motorista, regra de recepção 8). Replicar idêntico em `../RideRelayPassenger/specs/002-nostr-relay-connection/contracts/nostr-events.md` e conferir os dois arquivos por `diff`. Commit separado, antes do código.
+- [x] T003 Confirmar que nenhuma dependência nova é necessária (geohash em casa, R1; `dart_nostr` já tem `additionalFilters`); nada a acrescentar ao `pubspec.yaml`.
 
 ## Fase 2: Fundação (bloqueia todas as histórias)
 

@@ -3,6 +3,7 @@ import 'package:driver/domain/driver_profile.dart';
 import 'package:driver/domain/payment_method.dart';
 import 'package:driver/screens/cadastro_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> _selecionar(
@@ -591,6 +592,40 @@ void main() {
         find.textContaining('próxima vez que você ficar online'),
         findsOneWidget,
       );
+    });
+
+    // O texto de ajuda de um campo é limitado a duas linhas pela identidade
+    // visual (`helperMaxLines`), e o aviso, longo, saía cortado ("…"). O teste
+    // fixa o desenho que o evita: o aviso é um texto à parte, sem limite de
+    // linhas, e não parte do helperText. (Não se mede a largura de tela aqui: a
+    // fonte dos testes é a Ahem, larga demais, e estouraria o que é real.)
+    testWidgets('o aviso é um texto à parte, sem limite de linhas', (
+      tester,
+    ) async {
+      await _Gravacoes().monta(tester, motoristaOnline: () => true);
+
+      final aviso = find.textContaining('próxima vez que você ficar online');
+      expect(aviso, findsOneWidget);
+      expect(tester.widget<Text>(aviso).maxLines, isNull);
+      expect(tester.widget<Text>(aviso).data, endsWith('ficar online.'));
+      expect(
+        tester.renderObject<RenderParagraph>(aviso).didExceedMaxLines,
+        isFalse,
+      );
+      final ajuda = tester
+          .widget<TextField>(campoRaio())
+          .decoration!
+          .helperText!;
+      expect(ajuda, isNot(contains('próxima vez')));
+      expect(ajuda, contains('De 1 a 100 km.'));
+    });
+
+    testWidgets('a ajuda fixa do campo continua visível com o aviso', (
+      tester,
+    ) async {
+      await _Gravacoes().monta(tester, motoristaOnline: () => true);
+
+      expect(find.textContaining('De 1 a 100 km.'), findsOneWidget);
     });
 
     testWidgets('offline (ou sem a informação), não há aviso', (tester) async {

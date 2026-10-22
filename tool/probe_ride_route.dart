@@ -56,12 +56,10 @@ Future<void> main() async {
     WebSocket? assinante;
     WebSocket? publicador;
     try {
-      assinante = await WebSocket.connect(
-        url,
-      ).timeout(const Duration(seconds: 10));
-      publicador = await WebSocket.connect(
-        url,
-      ).timeout(const Duration(seconds: 10));
+      assinante = await WebSocket.connect(url)
+          .timeout(const Duration(seconds: 10));
+      publicador = await WebSocket.connect(url)
+          .timeout(const Duration(seconds: 10));
 
       final entregue = Completer<bool>();
       assinante.listen((dado) {

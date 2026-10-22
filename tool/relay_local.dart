@@ -16,7 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 
 String _resumo(String dado) =>
-    dado.length > 300 ? '${dado.substring(0, 300)}…' : dado;
+    dado.length > 2000 ? '${dado.substring(0, 2000)}…' : dado;
 
 Future<void> main(List<String> args) async {
   var porta = 7777;

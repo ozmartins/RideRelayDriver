@@ -712,6 +712,53 @@ void main() {
       expect(notifier.notified, isEmpty);
     });
 
+    test(
+      'serviço reiniciado online, sem cobertura, não notifica até receber uma',
+      () async {
+        // O estado `online` foi persistido; a cobertura, de propósito, não.
+        await core.dispose();
+        gateway = FakeRelayGateway();
+        canais = FakeChannelPair();
+        notifier = FakeRideRequestNotifier();
+        core = RelayHostCore(
+          relays: RelayService(gateway),
+          channel: canais.service,
+          stateStore: ServiceStateStore(store),
+          relayRepository: RelayRepository(store),
+          notifier: notifier,
+          acceptedKinds: driverConsumedKinds,
+        );
+        await core.start();
+        expect(core.state.online, isTrue);
+        expect(core.coverage, isNull);
+
+        chega(solicitacao());
+        await pumpEventQueue();
+        expect(notifier.notified, isEmpty);
+
+        daInterface(ServiceSetCoverage(cobertura));
+        await pumpEventQueue();
+        chega(solicitacao());
+        await pumpEventQueue();
+
+        expect(notifier.notified, hasLength(1));
+      },
+    );
+
+    test(
+      'a interface que reaparece (hello) não faz o serviço perder a cobertura',
+      () async {
+        daInterface(ServiceSetCoverage(cobertura));
+        await pumpEventQueue();
+
+        daInterface(const ServiceHello(foreground: true));
+        await pumpEventQueue();
+
+        expect(core.coverage, cobertura);
+        expect(enviadas<ServiceHelloAck>(), hasLength(1));
+      },
+    );
+
     test('os demais kinds não sofrem o recorte', () async {
       final aceitacao = signedPayload(
         kind: NostrEvent.kindQuoteAccepted,

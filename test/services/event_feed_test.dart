@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dart_nostr/dart_nostr.dart' as nostr;
+import 'package:driver/domain/driver_coverage.dart';
+import 'package:driver/domain/geohash.dart';
 import 'package:driver/domain/nostr_event.dart' as domain;
 import 'package:driver/services/event_feed.dart';
 import 'package:driver/services/prototype_marker.dart';
@@ -48,8 +50,17 @@ void main() {
     await incoming.close();
   });
 
-  EventFeed buildFeed({int maxEvents = 200}) {
-    feed = EventFeed(incoming: incoming.stream, maxEvents: maxEvents);
+  EventFeed buildFeed({
+    int maxEvents = 200,
+    DriverCoverage? Function()? coverage,
+    Set<int> acceptedKinds = const {domain.NostrEvent.kindRideRequest},
+  }) {
+    feed = EventFeed(
+      incoming: incoming.stream,
+      maxEvents: maxEvents,
+      coverage: coverage,
+      acceptedKinds: acceptedKinds,
+    );
     return feed;
   }
 
@@ -381,6 +392,148 @@ void main() {
         0,
         reason: 'o id descartado pela janela continuava guardado',
       );
+    });
+  });
+  group('recorte geográfico do 20001 (feature 027, regra 8 do contrato)', () {
+    const araranguaLat = -28.9298, araranguaLon = -49.4753;
+    DriverCoverage cobertura({int raio = 10}) => DriverCoverage.around(
+      lat: araranguaLat,
+      lon: araranguaLon,
+      radiusKm: raio,
+    );
+
+    List<List<String>> tagsG(double lat, double lon) => [
+      for (final p in kPrecisoesDaTag) ['g', Geohash.encode(lat, lon, p)],
+    ];
+
+    Map<String, dynamic> solicitacao(
+      double lat,
+      double lon, {
+      List<List<String>>? tags,
+      int kind = domain.NostrEvent.kindRideRequest,
+    }) => signedPayload(
+      kind: kind,
+      content:
+          '{"origin":{"lat":$lat,"lon":$lon},'
+          '"destination":{"lat":$lat,"lon":$lon},"payment":"pix"}',
+      tags: tags ?? [prototypeMarkerTag, ...tagsG(lat, lon)],
+    );
+
+    test('aceita a solicitação de origem dentro do raio', () async {
+      final f = buildFeed(coverage: cobertura);
+
+      emit(solicitacao(araranguaLat + 0.03, araranguaLon)); // ~3 km
+      await pumpEventQueue();
+
+      expect(f.events, hasLength(1));
+      expect(f.discardedOutOfCoverageCount, 0);
+    });
+
+    test(
+      'descarta São Paulo: nem entra na lista nem conta como aceita',
+      () async {
+        final f = buildFeed(coverage: cobertura);
+
+        emit(solicitacao(-23.5505, -46.6333));
+        await pumpEventQueue();
+
+        expect(f.events, isEmpty);
+        expect(f.discardedOutOfCoverageCount, 1);
+      },
+    );
+
+    test(
+      'descarta sem tag g, g fora das células e origem além do raio',
+      () async {
+        final f = buildFeed(coverage: cobertura);
+
+        // Sem g.
+        emit(
+          solicitacao(araranguaLat, araranguaLon, tags: [prototypeMarkerTag]),
+        );
+        // g de São Paulo, origem em Araranguá.
+        emit(
+          solicitacao(
+            araranguaLat,
+            araranguaLon,
+            tags: [prototypeMarkerTag, ...tagsG(-23.5505, -46.6333)],
+          ),
+        );
+        // g na célula, origem ~15 km ao norte: fora dos 10 km.
+        emit(solicitacao(araranguaLat + 0.135, araranguaLon));
+        await pumpEventQueue();
+
+        expect(f.events, isEmpty);
+        expect(f.discardedOutOfCoverageCount, 3);
+      },
+    );
+
+    test('o descarte vem antes da deduplicação: reentregue com outra cobertura, entra', () async {
+      var atual = cobertura();
+      final f = buildFeed(coverage: () => atual);
+      final longe = solicitacao(-23.5505, -46.6333);
+
+      emit(longe);
+      await pumpEventQueue();
+      expect(f.events, isEmpty);
+
+      // O motorista ficou offline e online em São Paulo.
+      atual = DriverCoverage.around(lat: -23.5505, lon: -46.6333, radiusKm: 10);
+      emit(longe);
+      await pumpEventQueue();
+
+      expect(f.events, hasLength(1));
+      expect(f.discardedDuplicateCount, 0);
+    });
+
+    test(
+      'assinatura inválida continua sendo descartada antes de tudo',
+      () async {
+        final f = buildFeed(coverage: cobertura);
+
+        emit(solicitacao(araranguaLat, araranguaLon)..['sig'] = 'f' * 128);
+        await pumpEventQueue();
+
+        expect(f.events, isEmpty);
+        expect(f.discardedInvalidCount, 1);
+        expect(f.discardedOutOfCoverageCount, 0);
+      },
+    );
+
+    test(
+      'sem o parâmetro, ou com cobertura nula, não há recorte geográfico',
+      () async {
+        final f = buildFeed();
+        emit(solicitacao(-23.5505, -46.6333));
+        await pumpEventQueue();
+        expect(f.events, hasLength(1));
+        await f.dispose();
+
+        final g = buildFeed(coverage: () => null);
+        emit(solicitacao(-23.5505, -46.6333, tags: [prototypeMarkerTag]));
+        await pumpEventQueue();
+        expect(g.events, hasLength(1));
+        expect(g.discardedOutOfCoverageCount, 0);
+      },
+    );
+
+    test('outros kinds não sofrem o recorte', () async {
+      final f = buildFeed(
+        coverage: cobertura,
+        acceptedKinds: const {domain.NostrEvent.kindQuoteAccepted},
+      );
+
+      emit(
+        signedPayload(
+          kind: domain.NostrEvent.kindQuoteAccepted,
+          content: 'x',
+          tags: [prototypeMarkerTag],
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(f.events, hasLength(1));
+      expect(f.discardedOutOfCoverageCount, 0);
     });
   });
 }

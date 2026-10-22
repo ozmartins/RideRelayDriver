@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import 'event_verifier.dart';
 import 'prototype_marker.dart';
@@ -19,6 +20,7 @@ class EventFeed {
     this.verifier = const NostrEventVerifier(),
     this.maxEvents = 200,
     this.acceptedKinds = const {NostrEvent.kindRideRequest},
+    this.coverage,
   }) {
     _subscription = incoming.listen(_handle);
   }
@@ -28,6 +30,12 @@ class EventFeed {
 
   /// Kinds que a aplicação exibe; os demais são ignorados sem erro.
   final Set<int> acceptedKinds;
+
+  /// A cobertura geográfica vigente do motorista (feature 027), consultada a
+  /// cada `20001`. `null` (o parâmetro ou o valor devolvido) = sem recorte: a
+  /// recusa por falta de referência é do `RideRequestFilter`, que conhece o
+  /// estado online.
+  final DriverCoverage? Function()? coverage;
 
   /// Limite da janela de eventos mantida em memória.
   final int maxEvents;
@@ -43,6 +51,7 @@ class EventFeed {
   int _discardedInvalid = 0;
   int _discardedDuplicate = 0;
   int _discardedUnmarked = 0;
+  int _discardedOutOfCoverage = 0;
   int _accepted = 0;
 
   /// Eventos aceitos, do mais recente para o mais antigo.
@@ -60,6 +69,10 @@ class EventFeed {
   /// Quantos eventos legítimos, porém alheios ao protótipo, foram descartados
   /// por não trazerem o marcador (emenda 01, regra 6 do contrato).
   int get discardedUnmarkedCount => _discardedUnmarked;
+
+  /// Solicitações (`20001`) descartadas pelo recorte geográfico: sem tag `g`
+  /// numa das células, ou com origem além do raio (regra 8 do contrato).
+  int get discardedOutOfCoverageCount => _discardedOutOfCoverage;
 
   void _handle(IncomingEvent incoming) {
     final payload = incoming.payload;
@@ -80,6 +93,21 @@ class EventFeed {
     if (!hasPrototypeMarker(payload['tags'] as List<dynamic>?)) {
       _discardedUnmarked++;
       return;
+    }
+
+    // Recorte geográfico (regra 8, emenda 27): depois do marcador e **antes**
+    // da deduplicação, para que o evento descartado com uma referência não seja
+    // tratado como repetido quando o relay o reentregar com outra.
+    final cobertura = coverage?.call();
+    if (kind == NostrEvent.kindRideRequest && cobertura != null) {
+      final decisao = cobertura.evaluateRideRequest(
+        tags: _tagsDe(payload['tags']),
+        content: payload['content'] as String? ?? '',
+      );
+      if (!decisao.accepted) {
+        _discardedOutOfCoverage++;
+        return;
+      }
     }
 
     final id = payload['id'] as String;
@@ -134,6 +162,14 @@ class EventFeed {
 
     if (!_changes.isClosed) _changes.add(null);
   }
+
+  /// Tags do payload como listas de texto; o que não for uma tag de strings é
+  /// ignorado (dado de relay não é confiável).
+  static List<List<String>> _tagsDe(Object? bruto) => [
+    if (bruto is List)
+      for (final tag in bruto)
+        if (tag is List) [for (final item in tag) item.toString()],
+  ];
 
   Future<void> dispose() async {
     await _subscription.cancel();

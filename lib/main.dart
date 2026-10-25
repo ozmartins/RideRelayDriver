@@ -22,7 +22,7 @@ import 'services/identity_service.dart';
 import 'services/key_store.dart';
 import 'services/key_value_store.dart';
 import 'services/location_service.dart';
-import 'services/nostr_relay_gateway.dart';
+import 'services/ws_relay_gateway.dart';
 import 'services/relay_gateway.dart';
 import 'services/relay_repository.dart';
 import 'services/relay_connection.dart';
@@ -116,7 +116,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
       widget.relayConnection == null && widget.gateway == null;
   late final RelayGateway? _gateway = _remoto
       ? null
-      : (widget.gateway ?? NostrRelayGateway());
+      : (widget.gateway ?? WsRelayGateway());
   late final BackgroundService? _backgroundService = _remoto
       ? ForegroundTaskBackgroundService(channel: UiMessageChannel())
       : null;
@@ -246,7 +246,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
     _relayService.dispose();
     _backgroundService?.channel.close();
     final gateway = _gateway;
-    if (gateway is NostrRelayGateway) gateway.dispose();
+    if (gateway is WsRelayGateway) gateway.dispose();
     super.dispose();
   }
 

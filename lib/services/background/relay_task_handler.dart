@@ -6,7 +6,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../consumed_kinds.dart';
 import '../key_value_store.dart';
 import '../local_ride_request_notifier.dart';
-import '../nostr_relay_gateway.dart';
+import '../ws_relay_gateway.dart';
 import '../relay_repository.dart';
 import '../relay_service.dart';
 import 'foreground_task_channels.dart';
@@ -24,7 +24,7 @@ void relayServiceCallback() {
 /// Fina de propósito: a lógica está no núcleo, testado sem o plugin.
 class RelayTaskHandler extends TaskHandler {
   final ServiceSideChannel _channel = ServiceSideChannel();
-  NostrRelayGateway? _gateway;
+  WsRelayGateway? _gateway;
   RelayHostCore? _core;
 
   @override
@@ -33,7 +33,7 @@ class RelayTaskHandler extends TaskHandler {
     // registrados no isolate do serviço.
     DartPluginRegistrant.ensureInitialized();
 
-    final gateway = NostrRelayGateway();
+    final gateway = WsRelayGateway();
     _gateway = gateway;
     final store = FreshPreferencesStore();
     _core = RelayHostCore(

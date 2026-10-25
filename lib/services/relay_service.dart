@@ -53,8 +53,8 @@ class RelayService implements RelayConnection {
   ///
   /// Uma conexão pode morrer sem erro nem fechamento: depois de uma troca de
   /// Wi-Fi para dados móveis o TCP fica meio aberto e o socket não percebe por
-  /// minutos. A biblioteca não expõe `pingInterval` do WebSocket, então a
-  /// sonda é feita no nível do protocolo.
+  /// minutos. O ping do WebSocket (30 s) também fecha a conexão morta, mas
+  /// só a sonda no nível do protocolo prova que o relay responde.
   final Duration livenessInterval;
 
   /// Prazo para o relay responder à sonda antes de ser dado como caído.

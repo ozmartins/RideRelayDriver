@@ -32,8 +32,8 @@ class IncomingEvent {
 
 /// Transporte de relay: conecta, publica e entrega eventos recebidos.
 ///
-/// Abstração do projeto (Princípio III). A implementação real usa `dart_nostr`;
-/// os testes usam dublê em memória, para que nenhum teste dependa de rede ou de
+/// Abstração do projeto (Princípio III). A implementação real (`WsRelayGateway`) usa
+/// WebSocket do `dart:io`; os testes usam dublê em memória, para que nenhum teste dependa de rede ou de
 /// relay público (decisão D5).
 abstract class RelayGateway {
   /// Conecta a um relay. Completa quando o handshake termina; lança em falha.

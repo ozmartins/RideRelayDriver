@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-App Flutter/Android do **motorista** de um protótipo de corridas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../passenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 027) e na constituição.
+App Flutter/Android do **motorista** de um protótipo de corridas P2P sobre Nostr (PoC de TCC, UFSC). Não há backend: toda comunicação com a app do passageiro (projeto independente, `../RideRelayPassenger`) é por eventos Nostr em relays. O README descreve só as features 001–004; o estado real está em `specs/` (até a 029) e na constituição.
 
 ## Comandos
 
@@ -17,6 +17,8 @@ dart format lib test
 ```
 
 Chave do openrouteservice: `assets/ors_api_key.txt` (local, ignorado pelo Git; modelo em `assets/ors_api_key.txt.example`) ou `--dart-define=ORS_API_KEY=...` (o define tem precedência); sem chave, a rota cai em fallback. Scripts avulsos em `tool/` (`probe_*.dart`, `gen_*_vectors.dart`, `relay_local.dart`, `publish_ride_request.dart`) são sondas, geradores e apoio de teste manual, não parte do app.
+
+**Teste E2E da corrida (feature 029, `tool/e2e/`)**: roteiro que opera dois emuladores (`Pixel_6_API34_1` e `_2`) por ADB e repete o fluxo completo da corrida para a avaliação do TCC. `dart run tool/e2e/e2e.dart --periodo 1|2` (30 ciclos válidos, até 3 h de tempo ativo; `--retomar` continua após interrupção), `--relatorio` (Markdown e CSV combinando os períodos) e `--verificar-saida` (varredura de chave privada, `content` e chave da ORS). `--ensaio` grava à parte e não vale para o TCC. A saída vai para `e2e_saida/` (ignorada pelo Git). Lógica pura testada em `test/tool/e2e/`; a execução real depende dos emuladores e dos apps instalados, e não faz parte de `flutter test`. O roteiro só lê a chave **pública** dos apps; nunca grava chave privada nem `content`.
 
 ## Arquitetura
 

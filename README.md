@@ -102,8 +102,9 @@ Só o grupo **`[✓] Android toolchain`** (além de `[✓] Flutter`) precisa est
 
 ### Chave do openrouteservice
 
-A rota usa o openrouteservice. Informe a chave em `assets/ors_api_key.txt` ou com
-`--dart-define=ORS_API_KEY=...` (o define tem precedência). Sem chave, a rota cai em fallback.
+A rota usa o openrouteservice. Copie `assets/ors_api_key.txt.example` para `assets/ors_api_key.txt`
+(arquivo ignorado pelo Git) e coloque a sua chave, ou use `--dart-define=ORS_API_KEY=...` (o define
+tem precedência). Sem chave, a rota cai em fallback. Nunca versione a chave.
 
 ## Comandos
 

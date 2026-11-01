@@ -16,7 +16,7 @@ flutter test --plain-name "descarta evento com assinatura adulterada"   # um cas
 dart format lib test
 ```
 
-Chave do openrouteservice: `assets/ors_api_key.txt` ou `--dart-define=ORS_API_KEY=...` (o define tem precedência); sem chave, a rota cai em fallback. Scripts avulsos em `tool/` (`probe_*.dart`, `gen_*_vectors.dart`, `relay_local.dart`, `publish_ride_request.dart`) são sondas, geradores e apoio de teste manual, não parte do app.
+Chave do openrouteservice: `assets/ors_api_key.txt` (local, ignorado pelo Git; modelo em `assets/ors_api_key.txt.example`) ou `--dart-define=ORS_API_KEY=...` (o define tem precedência); sem chave, a rota cai em fallback. Scripts avulsos em `tool/` (`probe_*.dart`, `gen_*_vectors.dart`, `relay_local.dart`, `publish_ride_request.dart`) são sondas, geradores e apoio de teste manual, não parte do app.
 
 ## Arquitetura
 

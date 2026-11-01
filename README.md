@@ -102,9 +102,17 @@ Só o grupo **`[✓] Android toolchain`** (além de `[✓] Flutter`) precisa est
 
 ### Chave do openrouteservice
 
-A rota usa o openrouteservice. Copie `assets/ors_api_key.txt.example` para `assets/ors_api_key.txt`
-(arquivo ignorado pelo Git) e coloque a sua chave, ou use `--dart-define=ORS_API_KEY=...` (o define
-tem precedência). Sem chave, a rota cai em fallback. Nunca versione a chave.
+A chave do openrouteservice é **opcional**: o app compila e roda normalmente sem ela. Sem chave, a
+distância e a rota da corrida usam a distância em linha reta (fallback, marcada como aproximada) em vez do traçado real pelas ruas.
+
+Para usar a rota real, crie uma conta gratuita em <https://openrouteservice.org/dev/#/signup>, gere
+um token e informe-o de uma das formas abaixo:
+
+- copie `assets/ors_api_key.txt.example` para `assets/ors_api_key.txt` (arquivo ignorado pelo Git) e
+  substitua o conteúdo pela sua chave; ou
+- passe `--dart-define=ORS_API_KEY=...` ao `flutter run`/`flutter build` (o define tem precedência).
+
+Nunca versione a chave.
 
 ## Comandos
 

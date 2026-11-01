@@ -46,3 +46,14 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Segredos e configuração local (nunca versionar)
+/assets/ors_api_key.txt
+.env
+.env.*
+key.properties
+*.jks
+*.keystore
+*.pem
+*.p12
+google-services.json

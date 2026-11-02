@@ -1,0 +1,5 @@
+- dart run tool/e2e/e2e.dart --executar: passa a fazer o preparo antes das pré-condições e do pm clear. O resto do fluxo segue como estava.
+- --preparar: comando novo que só prepara o ambiente e sai com 0. Serve para testar o preparo separado, por exemplo antes de dormir.
+- --sem-preparo: pula tudo isso, se você já deixou o ambiente pronto à mão.
+- --sem-janela: inicia os emuladores com -no-window.
+- --retomar: só garante os emuladores. Não recompila nem reinstala, para continuar com os apps da execução original.

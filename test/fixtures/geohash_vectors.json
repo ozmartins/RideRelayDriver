@@ -1,0 +1,361 @@
+{
+  "descricao": "Vetores do geohash da tag g do kind 20001 (emenda 27). Para cada ponto: as três tags g (precisões 5, 4 e 3) e as células do bloco 3x3 de cada precisão, ordenadas. Idêntico nos dois apps.",
+  "ancoras": [
+    {
+      "lat": 42.605,
+      "lon": -5.603,
+      "precisao": 5,
+      "geohash": "ezs42"
+    },
+    {
+      "lat": 57.64911,
+      "lon": 10.40744,
+      "precisao": 11,
+      "geohash": "u4pruydqqvj"
+    }
+  ],
+  "pontos": [
+    {
+      "nome": "ararangua",
+      "lat": -28.9298,
+      "lon": -49.4753,
+      "tags_g": [
+        "6fug6",
+        "6fug",
+        "6fu"
+      ],
+      "celulas": {
+        "5": [
+          "6fug1",
+          "6fug3",
+          "6fug4",
+          "6fug5",
+          "6fug6",
+          "6fug7",
+          "6fug9",
+          "6fugd",
+          "6fuge"
+        ],
+        "4": [
+          "6fud",
+          "6fue",
+          "6fuf",
+          "6fug",
+          "6fus",
+          "6fuu",
+          "6fv4",
+          "6fv5",
+          "6fvh"
+        ],
+        "3": [
+          "6fe",
+          "6fg",
+          "6fs",
+          "6ft",
+          "6fu",
+          "6fv",
+          "6g5",
+          "6gh",
+          "6gj"
+        ]
+      }
+    },
+    {
+      "nome": "sao_paulo",
+      "lat": -23.5505,
+      "lon": -46.6333,
+      "tags_g": [
+        "6gyf4",
+        "6gyf",
+        "6gy"
+      ],
+      "celulas": {
+        "5": [
+          "6gycc",
+          "6gycf",
+          "6gycg",
+          "6gyf1",
+          "6gyf3",
+          "6gyf4",
+          "6gyf5",
+          "6gyf6",
+          "6gyf7"
+        ],
+        "4": [
+          "6gy9",
+          "6gyc",
+          "6gyd",
+          "6gye",
+          "6gyf",
+          "6gyg",
+          "6gz1",
+          "6gz4",
+          "6gz5"
+        ],
+        "3": [
+          "6gt",
+          "6gv",
+          "6gw",
+          "6gx",
+          "6gy",
+          "6gz",
+          "6uj",
+          "6un",
+          "6up"
+        ]
+      }
+    },
+    {
+      "nome": "chui",
+      "lat": -33.6866,
+      "lon": -53.4595,
+      "tags_g": [
+        "6f1br",
+        "6f1b",
+        "6f1"
+      ],
+      "celulas": {
+        "5": [
+          "6f1bn",
+          "6f1bp",
+          "6f1bq",
+          "6f1br",
+          "6f1bw",
+          "6f1bx",
+          "6f400",
+          "6f402",
+          "6f408"
+        ],
+        "4": [
+          "6ccx",
+          "6ccz",
+          "6cfp",
+          "6f18",
+          "6f19",
+          "6f1b",
+          "6f1c",
+          "6f40",
+          "6f41"
+        ],
+        "3": [
+          "6cb",
+          "6cc",
+          "6cf",
+          "6f0",
+          "6f1",
+          "6f2",
+          "6f3",
+          "6f4",
+          "6f6"
+        ]
+      }
+    },
+    {
+      "nome": "boa_vista",
+      "lat": 2.8235,
+      "lon": -60.6758,
+      "tags_g": [
+        "d8sb5",
+        "d8sb",
+        "d8s"
+      ],
+      "celulas": {
+        "5": [
+          "d8kzf",
+          "d8kzg",
+          "d8kzu",
+          "d8sb4",
+          "d8sb5",
+          "d8sb6",
+          "d8sb7",
+          "d8sbh",
+          "d8sbk"
+        ],
+        "4": [
+          "d8kx",
+          "d8kz",
+          "d8mp",
+          "d8s8",
+          "d8s9",
+          "d8sb",
+          "d8sc",
+          "d8t0",
+          "d8t1"
+        ],
+        "3": [
+          "d87",
+          "d8e",
+          "d8g",
+          "d8k",
+          "d8m",
+          "d8s",
+          "d8t",
+          "d8u",
+          "d8v"
+        ]
+      }
+    },
+    {
+      "nome": "antimeridiano_leste",
+      "lat": -16.5,
+      "lon": 179.99,
+      "tags_g": [
+        "rvpfp",
+        "rvpf",
+        "rvp"
+      ],
+      "celulas": {
+        "5": [
+          "2j01b",
+          "2j040",
+          "2j042",
+          "rvpcy",
+          "rvpcz",
+          "rvpfn",
+          "rvpfp",
+          "rvpfq",
+          "rvpfr"
+        ],
+        "4": [
+          "2j01",
+          "2j04",
+          "2j05",
+          "rvp9",
+          "rvpc",
+          "rvpd",
+          "rvpe",
+          "rvpf",
+          "rvpg"
+        ],
+        "3": [
+          "2hb",
+          "2j0",
+          "2j2",
+          "ruy",
+          "ruz",
+          "rvn",
+          "rvp",
+          "rvq",
+          "rvr"
+        ]
+      }
+    },
+    {
+      "nome": "antimeridiano_oeste",
+      "lat": -16.5,
+      "lon": -179.99,
+      "tags_g": [
+        "2j040",
+        "2j04",
+        "2j0"
+      ],
+      "celulas": {
+        "5": [
+          "2j01b",
+          "2j01c",
+          "2j040",
+          "2j041",
+          "2j042",
+          "2j043",
+          "rvpcz",
+          "rvpfp",
+          "rvpfr"
+        ],
+        "4": [
+          "2j01",
+          "2j03",
+          "2j04",
+          "2j05",
+          "2j06",
+          "2j07",
+          "rvpc",
+          "rvpf",
+          "rvpg"
+        ],
+        "3": [
+          "2hb",
+          "2hc",
+          "2j0",
+          "2j1",
+          "2j2",
+          "2j3",
+          "ruz",
+          "rvp",
+          "rvr"
+        ]
+      }
+    },
+    {
+      "nome": "perto_do_polo_norte",
+      "lat": 89.99,
+      "lon": 10.0,
+      "tags_g": [
+        "upzpg",
+        "upzp",
+        "upz"
+      ],
+      "celulas": {
+        "5": [
+          "upzpd",
+          "upzpe",
+          "upzpf",
+          "upzpg",
+          "upzps",
+          "upzpu"
+        ],
+        "4": [
+          "upyy",
+          "upyz",
+          "upzn",
+          "upzp",
+          "upzq",
+          "upzr"
+        ],
+        "3": [
+          "upw",
+          "upx",
+          "upy",
+          "upz",
+          "ur8",
+          "urb"
+        ]
+      }
+    },
+    {
+      "nome": "perto_do_polo_sul",
+      "lat": -89.99,
+      "lon": -170.0,
+      "tags_g": [
+        "00p05",
+        "00p0",
+        "00p"
+      ],
+      "celulas": {
+        "5": [
+          "00p04",
+          "00p05",
+          "00p06",
+          "00p07",
+          "00p0h",
+          "00p0k"
+        ],
+        "4": [
+          "00nb",
+          "00nc",
+          "00p0",
+          "00p1",
+          "00p2",
+          "00p3"
+        ],
+        "3": [
+          "00n",
+          "00p",
+          "00q",
+          "00r",
+          "020",
+          "022"
+        ]
+      }
+    }
+  ]
+}

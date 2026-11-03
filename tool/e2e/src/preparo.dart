@@ -100,6 +100,55 @@ Future<AmbienteVerificado> verificarEmuladores(
   );
 }
 
+/// Um emulador online com o AVD [avd], API 34 e x86_64 (FR-006), para a máquina
+/// que opera só o emulador do seu [papel] (`contracts/coordenacao.md`).
+Future<({String serial, Map<String, Object?> descricao})> verificarEmulador(
+  Adb adb, {
+  required String avd,
+  required String papel,
+}) async {
+  final List<String> seriais;
+  try {
+    seriais = await adb.dispositivos();
+  } on AdbFalha catch (e) {
+    throw PreCondicaoFalha('adb indisponível: ${e.mensagem}');
+  }
+  String? serial;
+  final online = <String>[];
+  for (final s in seriais) {
+    final nome = await adb.nomeAvd(s);
+    online.add(nome);
+    if (nome == avd) serial = s;
+  }
+  if (serial == null) {
+    throw PreCondicaoFalha(
+      'AVD esperado: $avd; online: ${online.isEmpty ? 'nenhum' : online.join(', ')}',
+    );
+  }
+  final api = await adb.propriedade(serial, 'ro.build.version.sdk');
+  final abi = await adb.propriedade(serial, 'ro.product.cpu.abi');
+  final modelo = await adb.propriedade(serial, 'ro.product.model');
+  if (api != '34') {
+    throw PreCondicaoFalha('emulador do $papel com API $api (esperada: 34)');
+  }
+  if (abi != 'x86_64') {
+    throw PreCondicaoFalha(
+      'emulador do $papel com ABI $abi (esperada: x86_64)',
+    );
+  }
+  return (
+    serial: serial,
+    descricao: <String, Object?>{
+      'avd_$papel': avd,
+      'serial_$papel': serial,
+      'api': api,
+      'abi': abi,
+      'modelo_$papel': modelo,
+      'relays': relaysDoRoteiro,
+    },
+  );
+}
+
 /// `pm clear` seguido da concessão das permissões (evita os diálogos).
 Future<void> limparEConceder(Adb adb, String serial, String pacote) async {
   await adb.pmClear(serial, pacote);

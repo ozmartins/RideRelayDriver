@@ -67,6 +67,54 @@ void main() {
     });
   });
 
+  group('verificarEmulador (um emulador por máquina)', () {
+    test('aceita o AVD pedido mesmo com outros online', () async {
+      final r = await verificarEmulador(
+        _adbComDoisEmuladores(),
+        avd: avdPassageiro,
+        papel: 'passageiro',
+      );
+      expect(r.serial, _pax);
+      expect(r.descricao['api'], '34');
+      expect(r.descricao['serial_passageiro'], _pax);
+    });
+
+    test('recusa AVD ausente, API e ABI errados, adb fora do ar', () async {
+      expect(
+        verificarEmulador(
+          _adbComDoisEmuladores()..seriais = [_mot],
+          avd: avdPassageiro,
+          papel: 'passageiro',
+        ),
+        throwsA(isA<PreCondicaoFalha>()),
+      );
+      expect(
+        verificarEmulador(
+          _adbComDoisEmuladores(api: '33'),
+          avd: avdMotorista,
+          papel: 'motorista',
+        ),
+        throwsA(isA<PreCondicaoFalha>()),
+      );
+      expect(
+        verificarEmulador(
+          _adbComDoisEmuladores(abi: 'arm64-v8a'),
+          avd: avdMotorista,
+          papel: 'motorista',
+        ),
+        throwsA(isA<PreCondicaoFalha>()),
+      );
+      expect(
+        verificarEmulador(
+          _adbComDoisEmuladores()..falhaGeral = 'sem adb',
+          avd: avdMotorista,
+          papel: 'motorista',
+        ),
+        throwsA(isA<PreCondicaoFalha>()),
+      );
+    });
+  });
+
   test('limparEConceder: pm clear e depois as três permissões', () async {
     final adb = _adbComDoisEmuladores();
     await limparEConceder(adb, _mot, pacoteMotorista);

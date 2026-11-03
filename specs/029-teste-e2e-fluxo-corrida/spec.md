@@ -13,6 +13,15 @@
 > O que for reaproveitado de `tool/e2e` só o será se existir e estiver de acordo com esta spec;
 > na data da criação a pasta `tool/e2e` está vazia.
 
+> **Emenda de 2026-11-03 (execução manual com logs dos aplicativos).** O roteiro automatizado
+> (`tool/e2e/`) foi suspenso: as 60 corridas serão feitas **manualmente** pelo pesquisador. A
+> evidência passa a vir de **logs gravados pelos próprios aplicativos** (FR-050 a FR-059,
+> `contracts/logs.md`), primeiro o do motorista, depois o do passageiro, e o relatório (FR-030 a
+> FR-037) passa a ser gerado a partir deles (FR-058). Enquanto a emenda valer, os requisitos que
+> descrevem a operação por ADB e pelo observador (FR-010 a FR-015, FR-017 a FR-024, FR-027) ficam
+> **suspensos**, não apagados: o código de `tool/e2e/` permanece como está. Critério de sucesso,
+> estatística e seções do relatório não mudam. Registro em `desvios.md`.
+
 ## Contexto e finalidade
 
 Trabalho acadêmico (TCC, UFSC) que avalia possibilidades e limitações do protocolo Nostr como
@@ -38,6 +47,13 @@ feito:** nada pode ser acrescentado, omitido ou alterado na execução sem regis
 - Q: Como ficam o teto de ciclos e o orçamento de tempo? → A: Teto único de 80 ciclos executados (sem a divisão 40 + saldo) e orçamento máximo de 12 horas de tempo ativo (antes, 3 horas por período).
 - Q: A exigência de dias distintos continua? → A: Não. A cota diária da OpenRouteService passa a ser apenas uma limitação declarada: se esgotar, a execução para de forma controlada e `--retomar` a continua depois, inclusive em outro dia (registrado).
 - Q: O relatório mantém recortes por período? → A: Não. Estatística, latência e comportamento por relay são apresentados só sobre o total da execução.
+
+### Session 2026-11-03
+
+- Q: O roteiro automatizado continua? → A: Suspenso. As 60 corridas são feitas à mão; a coleta de evidência passa a ser por logs dos aplicativos.
+- Q: Em que ordem? → A: (1) spec e log do app do motorista; (2) log do app do passageiro, com o mesmo contrato; (3) relatório gerado a partir dos logs.
+- Q: Como a latência é medida sem o toque do roteiro? → A: Entre o log de quem publica o evento e o de quem o recebe, ligados pelo `id` do evento. Exige relógios coerentes (mesma máquina, ou NTP em duas); o desvio conhecido consta nas limitações.
+- Q: O que o log pode conter? → A: Só metadados (operação, kind, id, relay, resultado, tamanhos, instantes). Nunca chave privada, `content`, chave de API, posição ou raio.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -376,6 +392,34 @@ saída legítima, deve passar.
 - **FR-040**: Qualquer desvio da especificação durante a execução (ciclo anulado, parâmetro
   alterado, etapa pulada) MUST ser registrado com o motivo, no registro do ciclo e na seção de
   limitações.
+
+### Funcional — coleta de logs pelos aplicativos (emenda de 2026-11-03)
+
+- **FR-050**: O app do motorista MUST registrar em log estruturado (JSON Lines, um objeto por linha)
+  **todas as operações** relevantes ao fluxo: ações do usuário nas telas do fluxo, eventos Nostr
+  publicados e recebidos, descartes (assinatura inválida, marcador ausente, fora do raio,
+  duplicado), conexão e desconexão de cada relay, resultado de cada `OK`/`CLOSED`/`NOTICE`,
+  transições da corrida, emissão e confirmação de recibos, e falhas de serviços externos.
+- **FR-051**: Cada linha MUST ter ao menos: instante UTC em milissegundos, papel (`motorista`),
+  componente, operação, resultado e, quando houver, kind, `id` do evento, relay e o `guid_corrida`.
+  Formato completo em `contracts/logs.md`.
+- **FR-052**: O log MUST NEVER conter chave privada, `content` de evento (cifrado ou não), chave de
+  API, coordenadas ou raio de atendimento. Teste automatizado MUST provar isso com valores plantados.
+- **FR-053**: O log MUST ser gravado também pelo serviço em primeiro plano (feature 025), pois é
+  nele que os eventos são recebidos e filtrados; os dois isolates não podem corromper um ao outro.
+- **FR-054**: O log MUST sobreviver ao fechamento do app e ser extraível sem root (por `adb` ou
+  exportação na tela), sem permissão nova no Android. Falha ao gravar log MUST NEVER afetar o fluxo.
+- **FR-055**: O log MUST ser aparado por tamanho (rotação simples), com teto que comporte as 60
+  corridas; ao aparar, registra-se a perda.
+- **FR-056**: Cada execução manual MUST ter um identificador (`execucao`) e cada corrida o
+  `guid_corrida`, para que o relatório separe ciclos sem depender de janela de tempo.
+- **FR-057**: O app do passageiro MUST gerar log com o **mesmo contrato** (`papel: passageiro`),
+  numa etapa posterior; o contrato muda nos dois repositórios no mesmo commit.
+- **FR-058**: O relatório MUST poder ser gerado a partir dos logs dos dois aplicativos, mantendo as
+  oito seções, e MUST dizer quais fontes existiam (só motorista, ou os dois) e que a latência
+  entre apps depende da coerência dos relógios.
+- **FR-059**: Medições do relatório MUST citar o método (campos e pares de linhas usados), conforme
+  a constituição.
 
 ### Key Entities
 

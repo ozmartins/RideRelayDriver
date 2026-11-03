@@ -20,3 +20,9 @@ ponto devolvido pelo Photon), tela não capturada. O que não está aqui não fo
 | 2026-11-02 | A avaliação deixa de ter dois períodos: passa a ser uma única execução de 60 ciclos válidos, teto de 80 executados, orçamento de 12 h de tempo ativo, sem exigência de dias distintos e com relatório só sobre o total | Decisão do autor (spec, Clarifications de 2026-11-02); o motivo detalhado cabe ao autor registrar aqui |
 | 2026-11-01 | No passageiro, o `geo fix` também vai ao destino (etapa E09) | O botão "Confirmar chegada ao destino" depende da posição do passageiro (`map_screen.dart` do passageiro, `_noRaioDoDestino`), não do aviso 20009 |
 | 2026-11-01 | Campos de texto escolhidos pela ordem e teclado fechado com ENTER | O dump não traz o rótulo dos campos e o BACK sai do app do motorista |
+
+## Emenda de 2026-11-03
+
+| Data (UTC) | O que mudou ou foi conferido | Motivo |
+|------------|------------------------------|--------|
+| 2026-11-03 | Roteiro automatizado suspenso; as 60 corridas serão feitas manualmente e a evidência virá de logs dos apps (FR-050 a FR-059, `contracts/logs.md`) | Decisão do autor: o teste automatizado não vinha funcionando; o motivo detalhado cabe ao autor registrar aqui |

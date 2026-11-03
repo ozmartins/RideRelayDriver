@@ -6,9 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../tool/e2e/src/ciclo.dart';
 import '../../../tool/e2e/src/config.dart';
+import '../../../tool/e2e/src/coordenacao.dart';
 import '../../../tool/e2e/src/evidencia.dart';
 import '../../../tool/e2e/src/latencia.dart';
 import '../../../tool/e2e/src/observador.dart';
+import '../../../tool/e2e/src/opcoes.dart' show Papel;
 import '../../support/fake_relay_transport.dart';
 import 'support/fake_adb.dart';
 import 'support/relogio_falso.dart';
@@ -35,11 +37,17 @@ void main() {
   late SimuladorCorrida sim;
   late Set<String> telas;
 
-  ExecutorCiclo montar({Limites limites = const Limites()}) {
+  ExecutorCiclo montar({
+    Limites limites = const Limites(),
+    Papel? papel,
+    Coordenacao? coordenacao,
+  }) {
     final ctx = ContextoCiclo(
       adb: adb,
-      serialMotorista: _mot,
-      serialPassageiro: _pax,
+      serialMotorista: papel == Papel.passageiro ? '' : _mot,
+      serialPassageiro: papel == Papel.motorista ? '' : _pax,
+      papel: papel,
+      coordenacao: coordenacao,
       observador: observador,
       evidencia: Evidencia(
         adb: adb,
@@ -47,7 +55,7 @@ void main() {
       ),
       relogio: relogio,
       limites: limites,
-      telasCapturadas: telas,
+      telasCapturadas: papel == null ? telas : <String>{},
     );
     return ExecutorCiclo(ctx);
   }
@@ -82,6 +90,84 @@ void main() {
   });
 
   tearDown(() => pasta.deleteSync(recursive: true));
+
+  test(
+    'duas máquinas: um executor por papel completa o ciclo, cada um só no seu '
+    'emulador',
+    () async {
+      final rs = await Future.wait([
+        montar(papel: Papel.motorista).executar(1),
+        montar(papel: Papel.passageiro).executar(1),
+      ]);
+      final mot = rs[0].ciclo;
+      final pax = rs[1].ciclo;
+
+      expect(mot.resultado, 'sucesso', reason: '${mot.etapaFalha}');
+      expect(pax.resultado, 'sucesso', reason: '${pax.etapaFalha}');
+      for (final c in [mot, pax]) {
+        expect(c.etapas.map((e) => e.id), [
+          for (var i = 1; i <= 12; i++) 'E${i.toString().padLeft(2, '0')}',
+          'R',
+        ]);
+      }
+      expect(
+        [for (final e in mot.etapas) ...e.acoes.map((a) => a.id)],
+        [
+          'orcamento',
+          'chegada-origem',
+          'chegada-destino',
+          'avaliacao-motorista',
+        ],
+      );
+      expect(
+        [for (final e in pax.etapas) ...e.acoes.map((a) => a.id)],
+        [
+          'solicitar',
+          'aceitar',
+          'confirmar-encontro',
+          'confirmar-destino',
+          'avaliacao-passageiro',
+        ],
+      );
+      expect(mot.capturas.every((x) => x.contains('motorista')), isTrue);
+      expect(pax.capturas.every((x) => x.contains('passageiro')), isTrue);
+    },
+  );
+
+  test('duas máquinas: o motorista para de esperar quando o passageiro já '
+      'falhou, e a falha dele é só reflexo', () async {
+    final nucleo = NucleoCoordenacao();
+    nucleo.registrarFalha(1, Papel.passageiro, 'E01');
+
+    final r = await montar(
+      papel: Papel.motorista,
+      coordenacao: CoordenacaoLocal(nucleo, Papel.motorista),
+    ).executar(1);
+
+    expect(r.ciclo.resultado, 'falha');
+    expect(r.ciclo.etapaFalha, 'E01');
+    expect(r.consequencia, isTrue);
+    final e01 = r.ciclo.etapas.first;
+    expect(
+      e01.fimUtc.difference(e01.inicioUtc),
+      lessThan(const Duration(seconds: 5)),
+    );
+    // Quem falha por reflexo não repete o aviso.
+    expect(nucleo.falhaDoOutro(1, Papel.passageiro), isNull);
+  });
+
+  test('duas máquinas: quem falha avisa o outro lado', () async {
+    final nucleo = NucleoCoordenacao();
+
+    final r = await montar(
+      papel: Papel.motorista,
+      coordenacao: CoordenacaoLocal(nucleo, Papel.motorista),
+    ).executar(1);
+
+    expect(r.ciclo.resultado, 'falha');
+    expect(r.consequencia, isFalse);
+    expect(nucleo.falhaDoOutro(1, Papel.passageiro), r.ciclo.etapaFalha);
+  });
 
   test(
     'ciclo feliz: E01–E12 e R ok, ações registradas, 6 telas × 2 capturadas',

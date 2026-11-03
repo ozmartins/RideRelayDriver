@@ -67,6 +67,15 @@ abstract interface class Adb {
   /// Esvazia o buffer do `logcat` (`logcat -c`), no início de cada ciclo, para
   /// que os sinais lidos na falha sejam só os do ciclo.
   Future<void> limparLogcat(String serial);
+
+  /// Desligamento ordenado do sistema (`shell reboot -p`): o Android grava o que
+  /// estava em cache em `/data` e o emulador encerra o próprio processo. É o que
+  /// preserva o cadastro e a chave dos apps entre dois ciclos.
+  Future<void> desligar(String serial);
+
+  /// `adb emu kill`: encerra o processo do emulador sem desligar o sistema.
+  /// Só serve de recurso quando [desligar] não surtiu efeito.
+  Future<void> emuKill(String serial);
 }
 
 class AdbProcesso implements Adb {
@@ -281,5 +290,15 @@ class AdbProcesso implements Adb {
   @override
   Future<void> limparLogcat(String serial) async {
     await _rodar(['-s', serial, 'logcat', '-c']);
+  }
+
+  @override
+  Future<void> desligar(String serial) async {
+    await _rodar(['-s', serial, 'shell', 'reboot', '-p']);
+  }
+
+  @override
+  Future<void> emuKill(String serial) async {
+    await _rodar(['-s', serial, 'emu', 'kill']);
   }
 }

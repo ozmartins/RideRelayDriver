@@ -2,8 +2,10 @@ import 'adb.dart';
 import 'checkpoint.dart';
 import 'classificacao.dart';
 import 'config.dart';
+import 'coordenacao.dart';
 import 'evidencia.dart';
 import 'observador.dart';
+import 'opcoes.dart' show Papel;
 import 'relogio.dart';
 import 'telas.dart';
 import 'ui.dart';
@@ -18,6 +20,7 @@ class FalhaEtapa implements Exception {
     this.timeout = false,
     this.efeitoRemoto = false,
     this.ciclo = false,
+    this.propagada = false,
   });
 
   final String motivo;
@@ -30,6 +33,10 @@ class FalhaEtapa implements Exception {
 
   /// O que estourou foi o tempo total do ciclo.
   final bool ciclo;
+
+  /// O outro lado já tinha falhado (duas máquinas): esta falha é consequência
+  /// da dele, não a causa.
+  final bool propagada;
 
   @override
   String toString() => 'FalhaEtapa: $motivo';
@@ -58,16 +65,32 @@ class ContextoCiclo {
     required this.evidencia,
     required this.relogio,
     this.limites = const Limites(),
+    this.papel,
+    this.coordenacao,
     Set<String>? telasCapturadas,
   }) : telasCapturadas = telasCapturadas ?? <String>{};
 
   final Adb adb;
-  final String serialMotorista;
-  final String serialPassageiro;
+
+  /// Mudam quando o roteiro reinicia os emuladores entre ciclos: o emulador que
+  /// sobe de novo pode ocupar outra porta.
+  ///
+  /// Com [papel] definido (duas máquinas), só o serial do próprio papel vale; o
+  /// outro pode ser vazio e nunca é usado.
+  String serialMotorista;
+  String serialPassageiro;
   final Observador observador;
   final Evidencia evidencia;
   final Relogio relogio;
   final Limites limites;
+
+  /// Papel desta máquina (`contracts/coordenacao.md`); nulo = uma máquina com
+  /// os dois emuladores, o modo original.
+  final Papel? papel;
+
+  /// Canal com o outro lado (duas máquinas): serve para avisar uma falha e para
+  /// parar de esperar quando o outro lado já falhou.
+  final Coordenacao? coordenacao;
 
   /// Telas fixas já capturadas nesta execução (FR-027).
   final Set<String> telasCapturadas;
@@ -82,6 +105,7 @@ class ResultadoCiclo {
     required this.ciclo,
     this.limiteDiarioOrs = false,
     this.recuperacaoFalhou = false,
+    this.consequencia = false,
   });
 
   final Ciclo ciclo;
@@ -91,6 +115,9 @@ class ResultadoCiclo {
 
   /// O roteiro não conseguiu devolver os apps ao estado inicial (D8).
   final bool recuperacaoFalhou;
+
+  /// A falha foi só reflexo da falha do outro lado (duas máquinas).
+  final bool consequencia;
 }
 
 const _kindsDeAnomalia = {20004, 20006, 20012, 20013};
@@ -105,6 +132,15 @@ class ExecutorCiclo {
   String get _pax => ctx.serialPassageiro;
   Relogio get _relogio => ctx.relogio;
 
+  /// Este processo opera o emulador do motorista / do passageiro.
+  bool get _comMot => ctx.papel != Papel.passageiro;
+  bool get _comPax => ctx.papel != Papel.motorista;
+
+  Future<Tela?> _dumpMot() async =>
+      _comMot ? Tela.parse(await _adb.dump(_mot)) : null;
+  Future<Tela?> _dumpPax() async =>
+      _comPax ? Tela.parse(await _adb.dump(_pax)) : null;
+
   // Estado do ciclo em andamento.
   late int _numero;
   late DateTime _inicio;
@@ -118,6 +154,7 @@ class ExecutorCiclo {
   bool _acaoDaEtapa = false;
   String? _ultimoTextoMot;
   String? _ultimoTextoPax;
+  DateTime? _proximaConsultaDoOutro;
 
   String _prefixo(String rotulo, String papel) =>
       'c${_numero.toString().padLeft(3, '0')}-$rotulo-$papel';
@@ -135,17 +172,19 @@ class ExecutorCiclo {
     _esperado = null;
     _ultimoTextoMot = null;
     _ultimoTextoPax = null;
+    _proximaConsultaDoOutro = null;
 
     String? etapaFalha;
     Classificacao? classificacao;
     var limiteOrs = false;
     var recuperacaoFalhou = false;
     var interrompido = false;
+    var consequencia = false;
     var fim = _relogio.agora();
 
     try {
-      await _adb.limparLogcat(_mot);
-      await _adb.limparLogcat(_pax);
+      if (_comMot) await _adb.limparLogcat(_mot);
+      if (_comPax) await _adb.limparLogcat(_pax);
     } on AdbFalha {
       // o primeiro uso do adb na etapa E01 acusa a falha de ambiente
     }
@@ -179,6 +218,7 @@ class ExecutorCiclo {
         final c = await _tratarFalha(id, falha);
         classificacao = c.$1;
         limiteOrs = c.$2;
+        consequencia = falha is FalhaEtapa && falha.propagada;
         break;
       }
     }
@@ -200,6 +240,7 @@ class ExecutorCiclo {
         final c = await _tratarFalha('R', falha);
         classificacao = c.$1;
         limiteOrs = c.$2;
+        consequencia = falha is FalhaEtapa && falha.propagada;
       }
       fim = _relogio.agora();
     }
@@ -238,6 +279,7 @@ class ExecutorCiclo {
       ciclo: ciclo,
       limiteDiarioOrs: limiteOrs,
       recuperacaoFalhou: recuperacaoFalhou,
+      consequencia: consequencia,
     );
   }
 
@@ -278,6 +320,10 @@ class ExecutorCiclo {
         resultado = 'falha';
       }
     }
+    if (falha != null && falha is! CicloInterrompido) {
+      final propagada = falha is FalhaEtapa && falha.propagada;
+      if (!propagada) await _sinalizarFalha(id);
+    }
     _etapas.add(
       Etapa(
         id: id,
@@ -289,6 +335,33 @@ class ExecutorCiclo {
       ),
     );
     return falha;
+  }
+
+  /// Avisa o outro lado (duas máquinas) de que esta etapa falhou. Sem canal, ou
+  /// com ele fora do ar, nada acontece: o outro lado esgota o prazo da etapa.
+  Future<void> _sinalizarFalha(String etapa) async {
+    final c = ctx.coordenacao;
+    if (c == null) return;
+    try {
+      await c.sinalizarFalha(_numero, etapa);
+    } on CoordenadorInalcancavel {
+      // o outro lado cai no prazo da própria etapa
+    }
+  }
+
+  /// Consulta (no máximo a cada 2 s) se o outro lado já falhou neste ciclo.
+  Future<bool> _outroFalhou() async {
+    final c = ctx.coordenacao;
+    if (c == null) return false;
+    final agora = _relogio.agora();
+    final proxima = _proximaConsultaDoOutro;
+    if (proxima != null && agora.isBefore(proxima)) return false;
+    _proximaConsultaDoOutro = agora.add(const Duration(seconds: 2));
+    try {
+      return await c.falhaDoOutro(_numero) != null;
+    } on CoordenadorInalcancavel {
+      return false;
+    }
   }
 
   bool _globalEstourado() {
@@ -303,20 +376,24 @@ class ExecutorCiclo {
     final prefixoMot = _prefixo('$etapa-falha', 'motorista');
     final prefixoPax = _prefixo('$etapa-falha', 'passageiro');
     if (!adbFora) {
-      _capturas.addAll(
-        await ctx.evidencia.capturar(
-          serial: _mot,
-          prefixo: prefixoMot,
-          comDump: true,
-        ),
-      );
-      _capturas.addAll(
-        await ctx.evidencia.capturar(
-          serial: _pax,
-          prefixo: prefixoPax,
-          comDump: true,
-        ),
-      );
+      if (_comMot) {
+        _capturas.addAll(
+          await ctx.evidencia.capturar(
+            serial: _mot,
+            prefixo: prefixoMot,
+            comDump: true,
+          ),
+        );
+      }
+      if (_comPax) {
+        _capturas.addAll(
+          await ctx.evidencia.capturar(
+            serial: _pax,
+            prefixo: prefixoPax,
+            comDump: true,
+          ),
+        );
+      }
     }
 
     // A faixa "Não foi possível traçar a rota" também aparece quando o motorista
@@ -331,7 +408,10 @@ class ExecutorCiclo {
         : null;
     if (!adbFora) {
       try {
-        final linhas = [...await _adb.logcat(_mot), ...await _adb.logcat(_pax)];
+        final linhas = [
+          if (_comMot) ...await _adb.logcat(_mot),
+          if (_comPax) ...await _adb.logcat(_pax),
+        ];
         sinal ??= detectarSinalExterno(linhasLogcat: linhas);
       } on AdbFalha {
         // sem logcat: a classificação segue com o que já tem
@@ -342,8 +422,8 @@ class ExecutorCiclo {
     if (!adbFora) {
       try {
         processoAusente =
-            !await _adb.processoVivo(_mot, pacoteMotorista) ||
-            !await _adb.processoVivo(_pax, pacotePassageiro);
+            (_comMot && !await _adb.processoVivo(_mot, pacoteMotorista)) ||
+            (_comPax && !await _adb.processoVivo(_pax, pacotePassageiro));
       } on AdbFalha {
         processoAusente = false;
       }
@@ -378,7 +458,10 @@ class ExecutorCiclo {
   /// acusar; aqui nada derruba o ciclo.
   Future<void> _reiniciarApps() async {
     try {
-      final apps = [(_mot, pacoteMotorista), (_pax, pacotePassageiro)];
+      final apps = [
+        if (_comMot) (_mot, pacoteMotorista),
+        if (_comPax) (_pax, pacotePassageiro),
+      ];
       for (final (serial, pacote) in apps) {
         await _adb.pararApp(serial, pacote);
       }
@@ -386,20 +469,32 @@ class ExecutorCiclo {
         await _adb.iniciarApp(serial, pacote);
       }
       await esperarCondicao<bool>(_relogio, () async {
-        final mot = Tela.parse(await _adb.dump(_mot));
-        final pax = Tela.parse(await _adb.dump(_pax));
+        final mot = await _dumpMot();
+        final pax = await _dumpPax();
         final mapas =
-            (mot.tem(Rotulos.motoristaOnline) ||
+            (mot == null ||
+                mot.tem(Rotulos.motoristaOnline) ||
                 mot.tem(Rotulos.motoristaOffline)) &&
-            (pax.botao(Rotulos.solicitar) != null ||
+            (pax == null ||
+                pax.botao(Rotulos.solicitar) != null ||
                 pax.tem(Rotulos.cancelarPassageiro));
         return mapas ? true : null;
       }, timeout: ctx.limites.reinicioDosApps);
-      final mot = Tela.parse(await _adb.dump(_mot));
-      final pax = Tela.parse(await _adb.dump(_pax));
-      if (!_ocioso(mot, pax)) await _recuperar();
+      if (!_ocioso(await _dumpMot(), await _dumpPax())) await _recuperar();
     } on AdbFalha {
       // o primeiro uso do adb na etapa E01 acusa a falha de ambiente
+    }
+  }
+
+  /// Reabre os dois apps e os devolve ao mapa ocioso, cancelando uma corrida
+  /// restaurada se houver. Usado na retomada, antes de ler as chaves públicas
+  /// (a aba "Mais" não existe com uma corrida aberta). Falso se não conseguir.
+  Future<bool> devolverAppsAoMapa() async {
+    await _reiniciarApps();
+    try {
+      return _ocioso(await _dumpMot(), await _dumpPax());
+    } on AdbFalha {
+      return false;
     }
   }
 
@@ -409,22 +504,24 @@ class ExecutorCiclo {
     try {
       final fim = _relogio.agora().add(ctx.limites.voltaAoInicio);
       while (_relogio.agora().isBefore(fim)) {
-        final telaMot = Tela.parse(await _adb.dump(_mot));
-        final telaPax = Tela.parse(await _adb.dump(_pax));
+        final telaMot = await _dumpMot();
+        final telaPax = await _dumpPax();
         if (_ocioso(telaMot, telaPax)) return true;
-        await _fecharPendencias(_mot, telaMot, [
-          Rotulos.cancelarMotorista,
-          'Pular',
-        ]);
-        await _fecharPendencias(_pax, telaPax, [
-          Rotulos.cancelarPassageiro,
-          'Pular',
-        ]);
+        if (telaMot != null) {
+          await _fecharPendencias(_mot, telaMot, [
+            Rotulos.cancelarMotorista,
+            'Pular',
+          ]);
+        }
+        if (telaPax != null) {
+          await _fecharPendencias(_pax, telaPax, [
+            Rotulos.cancelarPassageiro,
+            'Pular',
+          ]);
+        }
         await _relogio.dormir(const Duration(seconds: 2));
       }
-      final telaMot = Tela.parse(await _adb.dump(_mot));
-      final telaPax = Tela.parse(await _adb.dump(_pax));
-      return _ocioso(telaMot, telaPax);
+      return _ocioso(await _dumpMot(), await _dumpPax());
     } on AdbFalha {
       return false;
     }
@@ -441,7 +538,9 @@ class ExecutorCiclo {
       !t.tem(Rotulos.solicitacaoDeCorrida) &&
       !t.tem(Rotulos.orcamentoAceito);
 
-  bool _ocioso(Tela mot, Tela pax) => _paxOcioso(pax) && _motOcioso(mot);
+  /// Papel ausente (`null`) não conta: só o emulador desta máquina é conferido.
+  bool _ocioso(Tela? mot, Tela? pax) =>
+      (pax == null || _paxOcioso(pax)) && (mot == null || _motOcioso(mot));
 
   Future<void> _fecharPendencias(
     String serial,
@@ -461,7 +560,7 @@ class ExecutorCiclo {
 
   Future<Tela> _ler(String serial) async {
     final tela = Tela.parse(await _adb.dump(serial));
-    if (serial == _mot) {
+    if (serial == ctx.serialMotorista) {
       _ultimoTextoMot = tela.textoVisivel;
     } else {
       _ultimoTextoPax = tela.textoVisivel;
@@ -481,11 +580,19 @@ class ExecutorCiclo {
     final tela = efetivo <= Duration.zero
         ? null
         : await esperarCondicao<Tela>(_relogio, () async {
+            if (await _outroFalhou()) {
+              throw FalhaEtapa(
+                'o outro lado falhou; esperava $descricao',
+                efeitoRemoto: efeitoRemoto,
+                propagada: true,
+              );
+            }
             final t = await _ler(serial);
             if (condicao(t)) return t;
             // O passageiro volta a ver o aviso "Motorista a caminho" depois de
             // outras mensagens; ele cobre a tela até o "OK".
-            if (serial == _pax && t.tem(Rotulos.motoristaACaminho)) {
+            if (serial == ctx.serialPassageiro &&
+                t.tem(Rotulos.motoristaACaminho)) {
               final ok = t.botao(Rotulos.ok, exato: true);
               if (ok != null) await _tocarNo(_pax, ok);
             }
@@ -569,6 +676,7 @@ class ExecutorCiclo {
 
   /// Captura só a tela do motorista, uma vez por execução.
   Future<void> _capturarDoMotorista(String rotulo) async {
+    if (!_comMot) return;
     if (ctx.telasCapturadas.contains(rotulo)) return;
     ctx.telasCapturadas.add(rotulo);
     _capturas.addAll(
@@ -582,31 +690,38 @@ class ExecutorCiclo {
   Future<void> _capturarFixa(String rotulo) async {
     if (ctx.telasCapturadas.contains(rotulo)) return;
     ctx.telasCapturadas.add(rotulo);
-    _capturas.addAll(
-      await ctx.evidencia.capturar(
-        serial: _mot,
-        prefixo: _prefixo(rotulo, 'motorista'),
-      ),
-    );
-    _capturas.addAll(
-      await ctx.evidencia.capturar(
-        serial: _pax,
-        prefixo: _prefixo(rotulo, 'passageiro'),
-      ),
-    );
+    if (_comMot) {
+      _capturas.addAll(
+        await ctx.evidencia.capturar(
+          serial: _mot,
+          prefixo: _prefixo(rotulo, 'motorista'),
+        ),
+      );
+    }
+    if (_comPax) {
+      _capturas.addAll(
+        await ctx.evidencia.capturar(
+          serial: _pax,
+          prefixo: _prefixo(rotulo, 'passageiro'),
+        ),
+      );
+    }
   }
 
   // ---- etapas --------------------------------------------------------------
 
   Future<void> _e01EstadoInicial() async {
-    await _posicionar(_mot, partidaDoMotorista);
-    await _posicionar(_pax, pontoDeEncontro);
-    await _aguardar(
-      _pax,
-      'mapa ocioso do passageiro',
-      _paxOcioso,
-      ctx.limites.elementoLocal,
-    );
+    if (_comMot) await _posicionar(_mot, partidaDoMotorista);
+    if (_comPax) {
+      await _posicionar(_pax, pontoDeEncontro);
+      await _aguardar(
+        _pax,
+        'mapa ocioso do passageiro',
+        _paxOcioso,
+        ctx.limites.elementoLocal,
+      );
+    }
+    if (!_comMot) return;
     var tela = await _aguardar(
       _mot,
       'mapa do motorista',
@@ -630,6 +745,7 @@ class ExecutorCiclo {
   }
 
   Future<void> _e02Solicitar() async {
+    if (!_comPax) return;
     var tela = await _ler(_pax);
     final campos = tela.campos();
     if (campos.isEmpty) throw FalhaEtapa('campo de destino ausente');
@@ -693,6 +809,7 @@ class ExecutorCiclo {
   }
 
   Future<void> _e03MotoristaRecebe() async {
+    if (!_comMot) return;
     await _aguardar(
       _mot,
       Rotulos.solicitacaoDeCorrida,
@@ -703,63 +820,76 @@ class ExecutorCiclo {
   }
 
   Future<void> _e04Orcamento() async {
-    var tela = await _aguardar(
-      _mot,
-      'botão "${Rotulos.enviarOrcamento}" habilitado',
-      (t) => t.botao(Rotulos.enviarOrcamento) != null,
-      ctx.limites.rota,
-    );
-    await _tocarComAcao(
-      _mot,
-      tela,
-      Rotulos.enviarOrcamento,
-      'orcamento',
-      kind: 20002,
-      autor: 'motorista',
-    );
-    await _aguardar(
-      _pax,
-      Rotulos.orcamentosRecebidos,
-      (t) =>
-          t.tem(Rotulos.orcamentosRecebidos) &&
-          t.botao(Rotulos.aceitar) != null,
-      ctx.limites.efeitoRemoto,
-      efeitoRemoto: true,
-    );
+    if (_comMot) {
+      final tela = await _aguardar(
+        _mot,
+        'botão "${Rotulos.enviarOrcamento}" habilitado',
+        (t) => t.botao(Rotulos.enviarOrcamento) != null,
+        ctx.limites.rota,
+      );
+      await _tocarComAcao(
+        _mot,
+        tela,
+        Rotulos.enviarOrcamento,
+        'orcamento',
+        kind: 20002,
+        autor: 'motorista',
+      );
+    }
+    if (_comPax) {
+      await _aguardar(
+        _pax,
+        Rotulos.orcamentosRecebidos,
+        (t) =>
+            t.tem(Rotulos.orcamentosRecebidos) &&
+            t.botao(Rotulos.aceitar) != null,
+        ctx.limites.efeitoRemoto,
+        efeitoRemoto: true,
+      );
+    }
     await _capturarFixa('orcamento-recebido');
   }
 
   Future<void> _e05Selecao() async {
-    final tela = await _ler(_pax);
-    await _tocarComAcao(
-      _pax,
-      tela,
-      Rotulos.aceitar,
-      'aceitar',
-      kind: 20003,
-      autor: 'passageiro',
-    );
-    await _aguardar(
-      _mot,
-      Rotulos.iniciarCorrida,
-      (t) => t.botao(Rotulos.iniciarCorrida) != null,
-      ctx.limites.efeitoRemoto,
-      efeitoRemoto: true,
-    );
+    if (_comPax) {
+      final tela = await _ler(_pax);
+      await _tocarComAcao(
+        _pax,
+        tela,
+        Rotulos.aceitar,
+        'aceitar',
+        kind: 20003,
+        autor: 'passageiro',
+      );
+    }
+    if (_comMot) {
+      await _aguardar(
+        _mot,
+        Rotulos.iniciarCorrida,
+        (t) => t.botao(Rotulos.iniciarCorrida) != null,
+        ctx.limites.efeitoRemoto,
+        efeitoRemoto: true,
+      );
+    }
   }
 
   Future<void> _e06Inicio() async {
-    final telaMot = await _ler(_mot);
-    await _tocarSemAcao(_mot, telaMot, Rotulos.iniciarCorrida);
-    final telaPax = await _aguardar(
-      _pax,
-      Rotulos.motoristaACaminho,
-      (t) => t.tem(Rotulos.motoristaACaminho),
-      ctx.limites.efeitoRemoto,
-      efeitoRemoto: true,
-    );
+    if (_comMot) {
+      final telaMot = await _ler(_mot);
+      await _tocarSemAcao(_mot, telaMot, Rotulos.iniciarCorrida);
+    }
+    Tela? telaPax;
+    if (_comPax) {
+      telaPax = await _aguardar(
+        _pax,
+        Rotulos.motoristaACaminho,
+        (t) => t.tem(Rotulos.motoristaACaminho),
+        ctx.limites.efeitoRemoto,
+        efeitoRemoto: true,
+      );
+    }
     await _capturarFixa('motorista-a-caminho');
-    final ok = telaPax.botao(Rotulos.ok, exato: true);
+    final ok = telaPax?.botao(Rotulos.ok, exato: true);
     if (ok != null) await _tocarNo(_pax, ok);
   }
 
@@ -768,85 +898,101 @@ class ExecutorCiclo {
     // de lugar (o mapa do motorista deixa de seguir o carro depois do primeiro
     // trajeto, então só a posição relativa ao mapa indica o deslocamento).
     await _capturarDoMotorista('chegada-origem-antes');
-    await _posicionar(
-      _mot,
-      pontoDeEncontro,
-      acaoId: 'chegada-origem',
-      kind: 20007,
-      autor: 'motorista',
-    );
-    await _aguardar(
-      _pax,
-      Rotulos.motoristaChegou,
-      (t) => t.tem(Rotulos.motoristaChegou),
-      ctx.limites.posicionamento,
-      efeitoRemoto: true,
-    );
+    if (_comMot) {
+      await _posicionar(
+        _mot,
+        pontoDeEncontro,
+        acaoId: 'chegada-origem',
+        kind: 20007,
+        autor: 'motorista',
+      );
+    }
+    if (_comPax) {
+      await _aguardar(
+        _pax,
+        Rotulos.motoristaChegou,
+        (t) => t.tem(Rotulos.motoristaChegou),
+        ctx.limites.posicionamento,
+        efeitoRemoto: true,
+      );
+    }
     await _capturarDoMotorista('chegada-origem-depois');
   }
 
   Future<void> _e08Encontro() async {
-    final tela = await _ler(_pax);
-    await _tocarComAcao(
-      _pax,
-      tela,
-      Rotulos.confirmarEncontro,
-      'confirmar-encontro',
-      kind: 20008,
-      autor: 'passageiro',
-    );
-    await _aguardar(
-      _mot,
-      'trecho até o destino da corrida',
-      _motoristaNoTrechoDoDestino,
-      ctx.limites.efeitoRemoto,
-      efeitoRemoto: true,
-    );
+    if (_comPax) {
+      final tela = await _ler(_pax);
+      await _tocarComAcao(
+        _pax,
+        tela,
+        Rotulos.confirmarEncontro,
+        'confirmar-encontro',
+        kind: 20008,
+        autor: 'passageiro',
+      );
+    }
+    if (_comMot) {
+      await _aguardar(
+        _mot,
+        'trecho até o destino da corrida',
+        _motoristaNoTrechoDoDestino,
+        ctx.limites.efeitoRemoto,
+        efeitoRemoto: true,
+      );
+    }
     await _capturarFixa('corrida-em-andamento');
   }
 
   Future<void> _e09Destino() async {
     // O botão do passageiro é decisão local: depende da posição dele estar a até
     // 1 km do destino, não do aviso do motorista (20009). Os dois vão ao destino.
-    await _posicionar(_pax, destinoDaCorrida);
-    await _posicionar(
-      _mot,
-      destinoDaCorrida,
-      acaoId: 'chegada-destino',
-      kind: 20009,
-      autor: 'motorista',
-    );
-    await _aguardar(
-      _pax,
-      'botão "${Rotulos.confirmarDestino}"',
-      (t) => t.botao(Rotulos.confirmarDestino) != null,
-      ctx.limites.posicionamento,
-    );
+    if (_comPax) await _posicionar(_pax, destinoDaCorrida);
+    if (_comMot) {
+      await _posicionar(
+        _mot,
+        destinoDaCorrida,
+        acaoId: 'chegada-destino',
+        kind: 20009,
+        autor: 'motorista',
+      );
+    }
+    if (_comPax) {
+      await _aguardar(
+        _pax,
+        'botão "${Rotulos.confirmarDestino}"',
+        (t) => t.botao(Rotulos.confirmarDestino) != null,
+        ctx.limites.posicionamento,
+      );
+    }
   }
 
   Future<void> _e10ConfirmarDestino() async {
-    final tela = await _ler(_pax);
-    await _tocarComAcao(
-      _pax,
-      tela,
-      Rotulos.confirmarDestino,
-      'confirmar-destino',
-      kind: 20010,
-      autor: 'passageiro',
-    );
-    await _aguardar(
-      _mot,
-      Rotulos.avalieACorrida,
-      (t) => t.tem(Rotulos.avalieACorrida),
-      ctx.limites.efeitoRemoto,
-      efeitoRemoto: true,
-    );
+    if (_comPax) {
+      final tela = await _ler(_pax);
+      await _tocarComAcao(
+        _pax,
+        tela,
+        Rotulos.confirmarDestino,
+        'confirmar-destino',
+        kind: 20010,
+        autor: 'passageiro',
+      );
+    }
+    if (_comMot) {
+      await _aguardar(
+        _mot,
+        Rotulos.avalieACorrida,
+        (t) => t.tem(Rotulos.avalieACorrida),
+        ctx.limites.efeitoRemoto,
+        efeitoRemoto: true,
+      );
+    }
     await _capturarFixa('corrida-encerrada');
   }
 
   Future<void> _e11Avaliacoes() async {
-    await _avaliar(_mot, 'avaliacao-motorista', 'motorista');
-    await _avaliar(_pax, 'avaliacao-passageiro', 'passageiro');
+    if (_comMot) await _avaliar(_mot, 'avaliacao-motorista', 'motorista');
+    if (_comPax) await _avaliar(_pax, 'avaliacao-passageiro', 'passageiro');
     await _capturarFixa('avaliacao-concluida');
   }
 
@@ -916,19 +1062,23 @@ class ExecutorCiclo {
   }
 
   Future<void> _voltaAoEstadoInicial() async {
-    await _posicionar(_mot, partidaDoMotorista);
-    await _posicionar(_pax, pontoDeEncontro);
-    await _aguardar(
-      _pax,
-      'mapa ocioso do passageiro',
-      _paxOcioso,
-      ctx.limites.voltaAoInicio,
-    );
-    await _aguardar(
-      _mot,
-      'mapa ocioso do motorista',
-      _motOcioso,
-      ctx.limites.voltaAoInicio,
-    );
+    if (_comMot) await _posicionar(_mot, partidaDoMotorista);
+    if (_comPax) await _posicionar(_pax, pontoDeEncontro);
+    if (_comPax) {
+      await _aguardar(
+        _pax,
+        'mapa ocioso do passageiro',
+        _paxOcioso,
+        ctx.limites.voltaAoInicio,
+      );
+    }
+    if (_comMot) {
+      await _aguardar(
+        _mot,
+        'mapa ocioso do motorista',
+        _motOcioso,
+        ctx.limites.voltaAoInicio,
+      );
+    }
   }
 }

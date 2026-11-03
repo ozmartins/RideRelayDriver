@@ -144,6 +144,35 @@ class FakeAdb implements Adb {
     return logs[serial] ?? const [];
   }
 
+  /// Se verdadeiro, `reboot -p` não faz o emulador sair do `adb devices`.
+  bool desligarSemEfeito = false;
+
+  /// Se verdadeiro, `emu kill` também não tira o emulador do `adb devices`.
+  bool emuKillSemEfeito = false;
+
+  void _remover(String serial) {
+    seriais = [
+      for (final s in seriais)
+        if (s != serial) s,
+    ];
+    avds.remove(serial);
+    propriedades.remove(serial);
+  }
+
+  @override
+  Future<void> desligar(String serial) async {
+    _verificar();
+    chamadas.add('desligar:$serial');
+    if (!desligarSemEfeito) _remover(serial);
+  }
+
+  @override
+  Future<void> emuKill(String serial) async {
+    _verificar();
+    chamadas.add('emu-kill:$serial');
+    if (!emuKillSemEfeito) _remover(serial);
+  }
+
   @override
   Future<void> limparLogcat(String serial) async {
     _verificar();

@@ -8,7 +8,7 @@ Idêntico nos dois repositórios (motorista e passageiro). Mudou aqui ⇒ muda l
   (`ui` e `servico`; um arquivo por isolate para não haver escrita concorrente). O relatório junta os dois.
 - Rotação por tamanho: ao passar do teto, o arquivo antigo vira `.1` (um só) e a primeira linha do novo
   é `{"op":"log.rotacao","perdidas":N,...}`.
-- Extração: `adb exec-out run-as <pacote> cat files/logs/...` (build debug) ou botão de exportar.
+- Extração: `adb exec-out run-as <pacote> cat databases/logs/...` (build debug) ou botão de exportar.
 
 ## Campos
 

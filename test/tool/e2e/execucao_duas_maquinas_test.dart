@@ -72,9 +72,11 @@ class _Lado {
     int teto = 80,
     Future<ResultadoCiclo> Function(int)? ciclo,
     Future<bool> Function()? entreCiclos,
+    Future<bool> Function(ExecutorExecucao)? pronto,
     void Function(ExecutorExecucao)? aoCriar,
   }) {
-    final e = ExecutorExecucao(
+    late final ExecutorExecucao e;
+    e = ExecutorExecucao(
       execucao: Execucao(
         ensaio: true,
         metaValidos: meta,
@@ -88,7 +90,7 @@ class _Lado {
       contexto: contexto,
       executarCiclo:
           ciclo ?? (n) async => ResultadoCiclo(ciclo: _ciclo(n, relogio)),
-      prontoParaCiclo: () async => true,
+      prontoParaCiclo: () async => pronto == null ? true : pronto(e),
       entreCiclos:
           entreCiclos ??
           () async {
@@ -211,6 +213,29 @@ void main() {
     expect(pax.repo.lerCiclos().single.resultado, 'interrompido');
     expect(pax.repo.lerCiclos().single.valido, isFalse);
   });
+
+  test(
+    'Ctrl+C durante a espera na barreira não deixa o ciclo seguinte começar',
+    () async {
+      var chamadas = 0;
+      final r = await Future.wait([
+        mot.rodar(meta: 10),
+        pax.rodar(
+          meta: 10,
+          pronto: (e) async {
+            if (++chamadas == 2) e.pedirParada();
+            return true;
+          },
+        ),
+      ]);
+
+      expect(r[1].estado, EstadoExecucao.parcial);
+      expect(r[1].motivoParcial, 'interrompido');
+      expect(pax.repo.lerCiclos(), hasLength(1));
+      expect(r[0].motivoParcial, 'interrompido');
+      expect(mot.repo.lerCiclos(), hasLength(1));
+    },
+  );
 
   test('ciclos que não conferem entre os lados param por ambiente', () async {
     // O motorista já tem um ciclo gravado que o passageiro desconhece.

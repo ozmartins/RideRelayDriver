@@ -401,6 +401,8 @@ class ExecutorExecucao {
       if (coord != null && !await passar('inicio-ciclo', numero)) {
         return pararPorBarreira('inicio-ciclo');
       }
+      // O Ctrl+C pode ter chegado enquanto se esperava o outro lado na barreira.
+      if (_parar) return sair(EstadoExecucao.parcial, 'interrompido');
       contexto.prazoGlobal = inicioExecucao.add(
         Duration(milliseconds: execucao.orcamentoMs - tempoAtivoInicial),
       );

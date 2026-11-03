@@ -45,6 +45,8 @@ const String appTitle = 'Corridas Motorista';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await OrsApiKey.load();
+  // A chave da ORS nunca pode aparecer em texto livre do log (FR-052).
+  if (OrsApiKey.value.isNotEmpty) FlowLine.segredos.add(OrsApiKey.value);
   ForegroundTaskBackgroundService.initCommunicationPort();
   runApp(const CorridasDriverApp());
 }

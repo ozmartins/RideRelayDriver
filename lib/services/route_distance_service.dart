@@ -219,8 +219,8 @@ class FallbackRouteDistanceService implements RouteDistanceService {
   }) => _inner.trace(origin: origin, destination: destination);
 }
 
-/// Registra no log do fluxo as falhas do serviço decorado (openrouteservice),
-/// sem alterar o resultado nem a exceção.
+/// Registra no log do fluxo toda chamada ao serviço decorado (openrouteservice),
+/// com sucesso ou não, sem alterar o resultado nem a exceção.
 class LoggingRouteDistanceService implements RouteDistanceService {
   LoggingRouteDistanceService(this._inner, this._log);
 
@@ -231,25 +231,27 @@ class LoggingRouteDistanceService implements RouteDistanceService {
   Future<RouteEstimate> estimate({
     required LatLng origin,
     required LatLng destination,
-  }) async {
-    try {
-      return await _inner.estimate(origin: origin, destination: destination);
-    } on Object catch (erro) {
-      _log.externoFalhou('ors', erro);
-      rethrow;
-    }
-  }
+  }) => _log.chamadaExterna(
+    'ors',
+    'rota',
+    () => _inner.estimate(origin: origin, destination: destination),
+    lat: origin.latitude,
+    lon: origin.longitude,
+    lat2: destination.latitude,
+    lon2: destination.longitude,
+  );
 
   @override
   Future<RouteTrace> trace({
     required LatLng origin,
     required LatLng destination,
-  }) async {
-    try {
-      return await _inner.trace(origin: origin, destination: destination);
-    } on Object catch (erro) {
-      _log.externoFalhou('ors', erro);
-      rethrow;
-    }
-  }
+  }) => _log.chamadaExterna(
+    'ors',
+    'rota',
+    () => _inner.trace(origin: origin, destination: destination),
+    lat: origin.latitude,
+    lon: origin.longitude,
+    lat2: destination.latitude,
+    lon2: destination.longitude,
+  );
 }

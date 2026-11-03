@@ -27,7 +27,7 @@ class FileFlowLog implements FlowLog {
     required this.iso,
     this.exec = kExecId,
     Future<String> Function()? diretorio,
-    this.maxBytes = 8 * 1024 * 1024,
+    this.maxBytes = 32 * 1024 * 1024,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        _diretorio = diretorio ?? diretorioDeLogs {
@@ -76,6 +76,13 @@ class FileFlowLog implements FlowLog {
     String? motivo,
     String? ext,
     int? n,
+    String? erro,
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
   }) {
     try {
       final linha = jsonEncode(
@@ -94,6 +101,13 @@ class FileFlowLog implements FlowLog {
           motivo: motivo,
           ext: ext,
           n: n,
+          erro: erro,
+          endereco: endereco,
+          lat: lat,
+          lon: lon,
+          lat2: lat2,
+          lon2: lon2,
+          ms: ms,
         ),
       );
       if (_arquivo == null) {

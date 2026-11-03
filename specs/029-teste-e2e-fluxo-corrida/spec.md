@@ -53,7 +53,7 @@ feito:** nada pode ser acrescentado, omitido ou alterado na execução sem regis
 - Q: O roteiro automatizado continua? → A: Suspenso. As 60 corridas são feitas à mão; a coleta de evidência passa a ser por logs dos aplicativos.
 - Q: Em que ordem? → A: (1) spec e log do app do motorista; (2) log do app do passageiro, com o mesmo contrato; (3) relatório gerado a partir dos logs.
 - Q: Como a latência é medida sem o toque do roteiro? → A: Entre o log de quem publica o evento e o de quem o recebe, ligados pelo `id` do evento. Exige relógios coerentes (mesma máquina, ou NTP em duas); o desvio conhecido consta nas limitações.
-- Q: O que o log pode conter? → A: Só metadados (operação, kind, id, relay, resultado, tamanhos, instantes). Nunca chave privada, `content`, chave de API, posição ou raio.
+- Q: O que o log pode conter? → A: Metadados (operação, kind, id, relay, resultado, tamanhos, instantes) e, por decisão do autor, o texto do erro, endereços e coordenadas consultados. Nunca chave privada, `content`, chave de API ou raio de atendimento.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -404,7 +404,11 @@ saída legítima, deve passar.
   componente, operação, resultado e, quando houver, kind, `id` do evento, relay e o `guid_corrida`.
   Formato completo em `contracts/logs.md`.
 - **FR-052**: O log MUST NEVER conter chave privada, `content` de evento (cifrado ou não), chave de
-  API, coordenadas ou raio de atendimento. Teste automatizado MUST provar isso com valores plantados.
+  API ou raio de atendimento. Teste automatizado MUST provar isso com valores plantados. *(Emenda
+  de 2026-11-03, decisão do autor: o log PASSA a poder conter o texto do erro, endereços e
+  coordenadas, para auditoria manual das falhas de serviços externos e das ações do usuário; o texto
+  livre é aparado, sem quebras de linha, e tem credenciais, chaves de 64 hex e a chave da ORS
+  substituídas por `[oculto]`.)*
 - **FR-053**: O log MUST ser gravado também pelo serviço em primeiro plano (feature 025), pois é
   nele que os eventos são recebidos e filtrados; os dois isolates não podem corromper um ao outro.
 - **FR-054**: O log MUST sobreviver ao fechamento do app e ser extraível sem root (por `adb` ou

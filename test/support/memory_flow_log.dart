@@ -19,6 +19,13 @@ class MemoryFlowLog implements FlowLog {
     String? motivo,
     String? ext,
     int? n,
+    String? erro,
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
   }) {
     linhas.add(
       FlowLine.build(
@@ -36,6 +43,13 @@ class MemoryFlowLog implements FlowLog {
         motivo: motivo,
         ext: ext,
         n: n,
+        erro: erro,
+        endereco: endereco,
+        lat: lat,
+        lon: lon,
+        lat2: lat2,
+        lon2: lon2,
+        ms: ms,
       ),
     );
   }

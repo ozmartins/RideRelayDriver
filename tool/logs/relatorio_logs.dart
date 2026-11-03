@@ -181,6 +181,30 @@ SaidaLogs gerarRelatorioLogs(
     b.writeln();
   }
 
+  b.writeln('### Chamadas a serviços externos (descritivo)');
+  b.writeln();
+  if (a.chamadasExternas.isEmpty) {
+    b.writeln('Nenhuma `externo.chamada` nos logs.');
+  } else {
+    b.writeln(
+      '| Serviço | Componente | Chamadas | Falhas | Mediana (ms) | P95 (ms) |',
+    );
+    b.writeln('|---|---|---|---|---|---|');
+    for (final k
+        in a.chamadasExternas.keys.toList()..sort((x, y) {
+          final c = x.$1.compareTo(y.$1);
+          return c != 0 ? c : x.$2.compareTo(y.$2);
+        })) {
+      final v = a.chamadasExternas[k]!;
+      final ms = [for (final c in v) c.ms];
+      b.writeln(
+        '| ${k.$1} | ${k.$2} | ${v.length} | ${v.where((c) => c.falhou).length} '
+        '| ${_ms(mediana(ms))} | ${_ms(postoMaisProximo(ms, 95))} |',
+      );
+    }
+  }
+  b.writeln();
+
   b.writeln('## 7. Comportamento por relay (descritivo)');
   b.writeln();
   b.writeln('| Relay | Kind | Entregas | Primeiro a entregar |');
@@ -284,5 +308,24 @@ SaidaLogs gerarRelatorioLogs(
         ]),
     ].join('\n'),
   };
+  csvs['externas.csv'] = [
+    _linhaCsv([
+      'servico',
+      'componente',
+      'chamadas',
+      'falhas',
+      'mediana_ms',
+      'p95_ms',
+    ]),
+    for (final e in a.chamadasExternas.entries)
+      _linhaCsv([
+        e.key.$1,
+        e.key.$2,
+        e.value.length,
+        e.value.where((c) => c.falhou).length,
+        mediana([for (final c in e.value) c.ms]),
+        postoMaisProximo([for (final c in e.value) c.ms], 95),
+      ]),
+  ].join('\n');
   return SaidaLogs(b.toString(), csvs);
 }

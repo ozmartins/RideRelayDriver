@@ -18,11 +18,12 @@ class Linha {
     this.motivo,
     this.ext,
     this.n,
+    this.ms,
   });
 
   final int t;
   final String papel, exec, iso, comp, op, res;
-  final int? kind, n;
+  final int? kind, n, ms;
   final String? id, relay, guid, motivo, ext;
 
   /// `null` se a linha não tem a forma do contrato (nunca lança).
@@ -49,6 +50,7 @@ class Linha {
         motivo: s('motivo'),
         ext: s('ext'),
         n: j['n'] is int ? j['n'] as int : null,
+        ms: j['ms'] is int ? j['ms'] as int : null,
       );
     } on FormatException {
       return null;

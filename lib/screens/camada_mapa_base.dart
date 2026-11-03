@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart';
 
@@ -37,11 +39,38 @@ class _CamadaMapaBaseState extends State<CamadaMapaBase> {
 
   Future<void> _carregar() async {
     try {
-      final estilo = await StyleReader(uri: CamadaMapaBase.estiloUrl).read();
+      final log = widget.log;
+      final lido = await log.chamadaExterna(
+        'openfreemap',
+        'estilo',
+        () => StyleReader(uri: CamadaMapaBase.estiloUrl).read(),
+      );
+      // Cada tile e o atlas de ícones também são chamadas ao OpenFreeMap.
+      final sprites = lido.sprites;
+      final estilo = Style(
+        name: lido.name,
+        theme: lido.theme,
+        center: lido.center,
+        zoom: lido.zoom,
+        providers: TileProviders({
+          for (final e in lido.providers.tileProviderBySource.entries)
+            e.key: _ProvedorComLog(e.value, log),
+        }),
+        sprites: sprites == null
+            ? null
+            : SpriteStyle(
+                index: sprites.index,
+                atlasProvider: () => log.chamadaExterna(
+                  'openfreemap',
+                  'sprite',
+                  sprites.atlasProvider,
+                  tamanho: (bytes) => bytes.length,
+                ),
+              ),
+      );
       if (mounted) setState(() => _estilo = estilo);
-    } catch (erro) {
-      widget.log.externoFalhou('openfreemap', erro);
-      // Sem estilo, o mapa fica só com o fundo; nada a informar ao usuário
+    } catch (_) {
+      // Já registrado por `chamadaExterna`. Sem estilo, o mapa fica só com o fundo; nada a informar ao usuário
       // além do que a própria ausência de tiles já mostra.
     }
   }
@@ -62,4 +91,33 @@ class _CamadaMapaBaseState extends State<CamadaMapaBase> {
       ),
     );
   }
+}
+
+/// Provedor de tiles que registra no log do fluxo cada tile pedido ao
+/// OpenFreeMap (duração, tamanho e, em falha, o erro).
+class _ProvedorComLog extends VectorTileProvider {
+  _ProvedorComLog(this._inner, this._log);
+
+  final VectorTileProvider _inner;
+  final FlowLog _log;
+
+  @override
+  Future<Uint8List> provide(TileIdentity tile) => _log.chamadaExterna(
+    'openfreemap',
+    'tile',
+    () => _inner.provide(tile),
+    tamanho: (bytes) => bytes.length,
+  );
+
+  @override
+  int get maximumZoom => _inner.maximumZoom;
+
+  @override
+  int get minimumZoom => _inner.minimumZoom;
+
+  @override
+  TileOffset get tileOffset => _inner.tileOffset;
+
+  @override
+  TileProviderType get type => _inner.type;
 }

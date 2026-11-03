@@ -141,8 +141,9 @@ class PhotonReverseGeocodingService implements ReverseGeocodingService {
   }
 }
 
-/// Registra no log do fluxo as falhas da Photon, sem alterar o resultado.
-/// "Nenhum endereço" e "endereço vazio" são respostas do serviço, não falha.
+/// Registra no log do fluxo toda chamada à Photon, com sucesso ou não, sem
+/// alterar o resultado. "Nenhum endereço" e "endereço vazio" são respostas do
+/// serviço, não falha.
 class LoggingReverseGeocodingService implements ReverseGeocodingService {
   LoggingReverseGeocodingService(this._inner, this._log);
 
@@ -150,15 +151,16 @@ class LoggingReverseGeocodingService implements ReverseGeocodingService {
   final FlowLog _log;
 
   @override
-  Future<String> addressOf(LatLng point) async {
-    try {
-      return await _inner.addressOf(point);
-    } on Object catch (erro) {
+  Future<String> addressOf(LatLng point) => _log.chamadaExterna(
+    'photon',
+    'geocodificacao',
+    () => _inner.addressOf(point),
+    lat: point.latitude,
+    lon: point.longitude,
+    endereco: null,
+    falhaDoServico: (erro) {
       final texto = erro.toString();
-      if (!texto.contains('nenhum endereço') && !texto.contains('vazio')) {
-        _log.externoFalhou('photon', erro);
-      }
-      rethrow;
-    }
-  }
+      return !texto.contains('nenhum endereço') && !texto.contains('vazio');
+    },
+  );
 }

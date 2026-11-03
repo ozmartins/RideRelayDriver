@@ -19,6 +19,13 @@ abstract class FlowLog {
     String? motivo,
     String? ext,
     int? n,
+    String? erro,
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
   });
 
   static const String ok = 'ok';
@@ -43,6 +50,13 @@ class NoFlowLog implements FlowLog {
     String? motivo,
     String? ext,
     int? n,
+    String? erro,
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
   }) {}
 }
 
@@ -77,6 +91,13 @@ class FlowLine {
     String? motivo,
     String? ext,
     int? n,
+    String? erro,
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
   }) {
     String nome(String v) => _nome.hasMatch(v) ? v : 'invalido';
     return {
@@ -94,8 +115,40 @@ class FlowLine {
       if (motivo != null && _nome.hasMatch(motivo)) 'motivo': motivo,
       if (ext != null && _externos.contains(ext)) 'ext': ext,
       if (n != null && n >= 0) 'n': n,
+      if (erro != null && erro.trim().isNotEmpty) 'erro': _texto(erro),
+      if (endereco != null && endereco.trim().isNotEmpty)
+        'endereco': _texto(endereco),
+      if (_lat(lat) && _lon(lon)) ...{'lat': lat, 'lon': lon},
+      if (_lat(lat2) && _lon(lon2)) ...{'lat2': lat2, 'lon2': lon2},
+      if (ms != null && ms >= 0) 'ms': ms,
     };
   }
+
+  /// Valores que nunca podem aparecer em texto livre do log (por exemplo, a
+  /// chave da ORS). Registrados na inicialização do app.
+  static final Set<String> segredos = {};
+
+  static final RegExp _credencial = RegExp(
+    r'((?:api[_-]?key|authorization|token|secret|nsec)\S*?[=:\s]+)\S+',
+    caseSensitive: false,
+  );
+  static final RegExp _hex64Solto = RegExp(r'\b[0-9a-fA-F]{64}\b');
+
+  /// Texto livre (erro, endereço): uma linha, no máximo 300 caracteres, sem
+  /// credenciais, chaves privadas (64 hex / nsec) nem os [segredos].
+  static String _texto(String bruto) {
+    var t = bruto.replaceAll(RegExp(r'[\r\n\t]+'), ' ').trim();
+    for (final s in segredos) {
+      if (s.length >= 8) t = t.replaceAll(s, '[oculto]');
+    }
+    t = t.replaceAllMapped(_credencial, (m) => '${m[1]}[oculto]');
+    t = t.replaceAll(_hex64Solto, '[oculto]');
+    t = t.replaceAll(RegExp(r'nsec1[0-9a-z]+'), '[oculto]');
+    return t.length > 300 ? '${t.substring(0, 300)}…' : t;
+  }
+
+  static bool _lat(double? v) => v != null && v >= -90 && v <= 90;
+  static bool _lon(double? v) => v != null && v >= -180 && v <= 180;
 
   /// Só `ws://` ou `wss://` com host, sem usuário, consulta ou fragmento.
   static Map<String, Object?>? _relay(String url) {
@@ -155,13 +208,97 @@ String motivoExterno(Object erro) {
 }
 
 /// Falha de um serviço externo (Photon, OpenFreeMap, ORS): é o sinal que o
-/// relatório usa para atribuir a falha ao serviço (FR-021a).
+/// relatório usa para atribuir a falha ao serviço (FR-021a). Leva o texto do
+/// erro e o que foi consultado (endereço, coordenadas), para auditoria manual.
 extension FlowLogExterno on FlowLog {
-  void externoFalhou(String servico, Object erro) => registrar(
+  void externoFalhou(
+    String servico,
+    Object erro, {
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int? ms,
+  }) => registrar(
     comp: 'externo',
     op: 'externo.falha',
     res: FlowLog.falha,
     ext: servico,
     motivo: motivoExterno(erro),
+    erro: erro.toString(),
+    endereco: endereco,
+    lat: lat,
+    lon: lon,
+    lat2: lat2,
+    lon2: lon2,
   );
+}
+
+/// Toda chamada a um serviço externo (Photon, OpenFreeMap, ORS), com sucesso ou
+/// não: `externo.chamada` com a duração em `ms`, o componente que chamou em
+/// `comp` (`rota`, `geocodificacao`, `estilo`, `tile`, `sprite`) e o que foi
+/// consultado. Em falha acrescenta `externo.falha` e relança.
+extension FlowLogChamada on FlowLog {
+  /// [falhaDoServico] diz se o erro é falha do serviço; falso = resposta
+  /// válida do serviço (por exemplo, "nenhum endereço"), registrada como ok.
+  Future<T> chamadaExterna<T>(
+    String servico,
+    String componente,
+    Future<T> Function() chamada, {
+    String? endereco,
+    double? lat,
+    double? lon,
+    double? lat2,
+    double? lon2,
+    int Function(T resultado)? tamanho,
+    bool Function(Object erro)? falhaDoServico,
+  }) async {
+    final cronometro = Stopwatch()..start();
+    try {
+      final resultado = await chamada();
+      registrar(
+        comp: componente,
+        op: 'externo.chamada',
+        res: FlowLog.ok,
+        ext: servico,
+        ms: cronometro.elapsedMilliseconds,
+        n: tamanho?.call(resultado),
+        endereco: endereco,
+        lat: lat,
+        lon: lon,
+        lat2: lat2,
+        lon2: lon2,
+      );
+      return resultado;
+    } on Object catch (erro) {
+      final falhou = falhaDoServico?.call(erro) ?? true;
+      registrar(
+        comp: componente,
+        op: 'externo.chamada',
+        res: falhou ? FlowLog.falha : FlowLog.ok,
+        ext: servico,
+        ms: cronometro.elapsedMilliseconds,
+        motivo: falhou ? motivoExterno(erro) : 'sem_resultado',
+        erro: erro.toString(),
+        endereco: endereco,
+        lat: lat,
+        lon: lon,
+        lat2: lat2,
+        lon2: lon2,
+      );
+      if (falhou) {
+        externoFalhou(
+          servico,
+          erro,
+          endereco: endereco,
+          lat: lat,
+          lon: lon,
+          lat2: lat2,
+          lon2: lon2,
+        );
+      }
+      rethrow;
+    }
+  }
 }

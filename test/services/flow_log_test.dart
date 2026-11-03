@@ -93,6 +93,68 @@ void main() {
     });
   });
 
+  group('texto livre e coordenadas (erro, endereco, lat/lon)', () {
+    Map<String, Object?> linha({
+      String? erro,
+      String? endereco,
+      double? lat,
+      double? lon,
+    }) => FlowLine.build(
+      t: 1,
+      papel: 'x',
+      exec: 'e',
+      iso: 'ui',
+      comp: 'externo',
+      op: 'externo.falha',
+      res: 'falha',
+      erro: erro,
+      endereco: endereco,
+      lat: lat,
+      lon: lon,
+    );
+
+    test('grava erro, endereço e coordenadas como vieram', () {
+      final l = linha(
+        erro: 'ClientException: HTTP 429 em photon.komoot.io',
+        endereco: 'Rua das Flores, 123',
+        lat: -27.59,
+        lon: -48.54,
+      );
+      expect(l['erro'], 'ClientException: HTTP 429 em photon.komoot.io');
+      expect(l['endereco'], 'Rua das Flores, 123');
+      expect(l['lat'], -27.59);
+      expect(l['lon'], -48.54);
+    });
+
+    test('oculta chave privada, credenciais e a chave da ORS no texto', () {
+      FlowLine.segredos.add('ors-chave-super-secreta');
+      addTearDown(FlowLine.segredos.clear);
+      final privada = 'ab' * 32;
+      final l = linha(
+        erro:
+            'falha em https://x/?api_key=ors-chave-super-secreta '
+            'Authorization: Bearer abc $privada nsec1qqqqqqqq',
+      );
+      final texto = l['erro'] as String;
+      expect(texto, isNot(contains('ors-chave-super-secreta')));
+      expect(texto, isNot(contains('Bearer abc')));
+      expect(texto, isNot(contains(privada)));
+      expect(texto, isNot(contains('nsec1qqqq')));
+      expect(texto, contains('[oculto]'));
+    });
+
+    test(
+      'limita o texto, tira quebras de linha e ignora coordenada inválida',
+      () {
+        final l = linha(erro: 'a\nb' * 200, lat: 95, lon: 10);
+        expect((l['erro'] as String).contains('\n'), isFalse);
+        expect((l['erro'] as String).length, lessThanOrEqualTo(301));
+        expect(l.containsKey('lat'), isFalse);
+        expect(l.containsKey('lon'), isFalse);
+      },
+    );
+  });
+
   group('EventFeed com log', () {
     test('registra recebido e descartes sem jamais gravar o content', () async {
       final incoming = StreamController<IncomingEvent>.broadcast();
@@ -215,29 +277,49 @@ void main() {
       expect(motivoExterno(Exception('Rua das Flores 123')), 'erro');
     });
 
-    test('registra externo.falha só com serviço e código, e relança', () async {
-      final log = MemoryFlowLog();
-      final rota = LoggingRouteDistanceService(_RotaQueFalha(), log);
-      await expectLater(
-        rota.estimate(
-          origin: const LatLng(-27.5, -48.5),
-          destination: const LatLng(-27.6, -48.6),
-        ),
-        throwsA(isA<RouteDistanceFailure>()),
-      );
-      final foto = LoggingReverseGeocodingService(
-        _FotonQueFalha('HTTP 429'),
-        log,
-      );
-      await expectLater(
-        foto.addressOf(const LatLng(-27.5, -48.5)),
-        throwsA(isA<ReverseGeocodingFailure>()),
-      );
-      expect(log.ops, ['externo.falha', 'externo.falha']);
-      expect([for (final l in log.linhas) l['ext']], ['ors', 'photon']);
-      expect(log.linhas.last['motivo'], 'http429');
-      expect(log.texto, isNot(contains('-27.5')));
-    });
+    test(
+      'registra externo.falha com o texto do erro e as coordenadas, e relança',
+      () async {
+        final log = MemoryFlowLog();
+        final rota = LoggingRouteDistanceService(_RotaQueFalha(), log);
+        await expectLater(
+          rota.estimate(
+            origin: const LatLng(-27.5, -48.5),
+            destination: const LatLng(-27.6, -48.6),
+          ),
+          throwsA(isA<RouteDistanceFailure>()),
+        );
+        final foto = LoggingReverseGeocodingService(
+          _FotonQueFalha('HTTP 429'),
+          log,
+        );
+        await expectLater(
+          foto.addressOf(const LatLng(-27.5, -48.5)),
+          throwsA(isA<ReverseGeocodingFailure>()),
+        );
+        expect(log.ops, [
+          'externo.chamada',
+          'externo.falha',
+          'externo.chamada',
+          'externo.falha',
+        ]);
+        expect(
+          [for (final l in log.linhas) l['ext']],
+          ['ors', 'ors', 'photon', 'photon'],
+        );
+        expect(log.linhas.last['motivo'], 'http429');
+        expect(log.linhas.first['res'], 'falha');
+        expect(log.linhas.first['ms'], isA<int>());
+        final rota0 = log.linhas.first;
+        expect(rota0['comp'], 'rota');
+        expect(rota0['erro'], contains('HTTP 429'));
+        expect(rota0['lat'], -27.5);
+        expect(rota0['lon'], -48.5);
+        expect(rota0['lat2'], -27.6);
+        expect(rota0['lon2'], -48.6);
+        expect(log.linhas.last['lat'], -27.5);
+      },
+    );
 
     test('"nenhum endereço" é resposta do serviço, não falha', () async {
       final log = MemoryFlowLog();
@@ -249,8 +331,29 @@ void main() {
         foto.addressOf(const LatLng(0, 0)),
         throwsA(isA<ReverseGeocodingFailure>()),
       );
-      expect(log.linhas, isEmpty);
+      expect(log.ops, ['externo.chamada']);
+      expect(log.linhas.single['res'], 'ok');
+      expect(log.linhas.single['motivo'], 'sem_resultado');
     });
+
+    test(
+      'chamada com sucesso também é registrada, com duração e tamanho',
+      () async {
+        final log = MemoryFlowLog();
+        final r = await log.chamadaExterna(
+          'openfreemap',
+          'tile',
+          () async => [1, 2, 3],
+          tamanho: (b) => b.length,
+        );
+        expect(r, [1, 2, 3]);
+        expect(log.ops, ['externo.chamada']);
+        expect(log.linhas.single['res'], 'ok');
+        expect(log.linhas.single['comp'], 'tile');
+        expect(log.linhas.single['n'], 3);
+        expect(log.linhas.single['ms'], isA<int>());
+      },
+    );
   });
 }
 

@@ -62,6 +62,7 @@ class Analise {
     required this.temPassageiro,
     required this.temMotorista,
     required this.execs,
+    required this.chamadasExternas,
   });
 
   final List<CicloLog> ciclos;
@@ -79,6 +80,9 @@ class Analise {
   final int solicitacoes;
   final bool temPassageiro, temMotorista;
   final Set<String> execs;
+
+  /// (serviço, componente) → duração (ms) de cada `externo.chamada` e se falhou.
+  final Map<(String, String), List<({int ms, bool falhou})>> chamadasExternas;
 
   int get validos => ciclos.where((c) => c.valido).length;
   int get falhas => ciclos.where((c) => c.falha).length;
@@ -216,6 +220,15 @@ Analise analisar(List<Linha> motorista, List<Linha> passageiro) {
     if (l.op == 'evento.recebeu') primeiro[k] = (primeiro[k] ?? 0) + 1;
   }
 
+  final chamadas = <(String, String), List<({int ms, bool falhou})>>{};
+  for (final l in todas) {
+    if (l.op != 'externo.chamada' || l.ext == null) continue;
+    chamadas.putIfAbsent((l.ext!, l.comp), () => []).add((
+      ms: l.ms ?? 0,
+      falhou: l.res == 'falha',
+    ));
+  }
+
   return Analise(
     ciclos: ciclos,
     latencias: amostras,
@@ -231,6 +244,7 @@ Analise analisar(List<Linha> motorista, List<Linha> passageiro) {
     temPassageiro: passageiro.isNotEmpty,
     temMotorista: motorista.isNotEmpty,
     execs: {for (final l in todas) l.exec},
+    chamadasExternas: chamadas,
   );
 }
 

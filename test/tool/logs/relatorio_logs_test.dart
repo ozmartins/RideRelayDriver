@@ -255,4 +255,24 @@ void main() {
     expect(r.linhas, hasLength(1));
     expect(r.invalidas, 3);
   });
+
+  test('resume as chamadas a serviços externos por serviço e componente', () {
+    Linha c(int ms, String res) => Linha.tentar(
+      jsonEncode({
+        't': 1,
+        'papel': 'motorista',
+        'exec': 'e',
+        'iso': 'ui',
+        'comp': 'tile',
+        'op': 'externo.chamada',
+        'res': res,
+        'ext': 'openfreemap',
+        'ms': ms,
+      }),
+    )!;
+    final b = analisar([c(100, 'ok'), c(300, 'ok'), c(50, 'falha')], []);
+    final s = gerarRelatorioLogs(b);
+    expect(s.markdown, contains('| openfreemap | tile | 3 | 1 | 100 | 300 |'));
+    expect(s.csvs['externas.csv'], contains('openfreemap,tile,3,1,100.0,300.0'));
+  });
 }

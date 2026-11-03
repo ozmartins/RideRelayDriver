@@ -237,7 +237,7 @@ extension FlowLogExterno on FlowLog {
 
 /// Toda chamada a um serviço externo (Photon, OpenFreeMap, ORS), com sucesso ou
 /// não: `externo.chamada` com a duração em `ms`, o componente que chamou em
-/// `comp` (`rota`, `geocodificacao`, `estilo`, `tile`, `sprite`) e o que foi
+/// `comp` (`rota`, `geocodificacao`, `estilo`, `sprite`) e o que foi
 /// consultado. Em falha acrescenta `externo.falha` e relança.
 extension FlowLogChamada on FlowLog {
   /// [falhaDoServico] diz se o erro é falha do serviço; falso = resposta

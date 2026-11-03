@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart';
@@ -45,17 +44,14 @@ class _CamadaMapaBaseState extends State<CamadaMapaBase> {
         'estilo',
         () => StyleReader(uri: CamadaMapaBase.estiloUrl).read(),
       );
-      // Cada tile e o atlas de ícones também são chamadas ao OpenFreeMap.
+      // Os tiles não são registrados (volume alto); só o estilo e o atlas de ícones.
       final sprites = lido.sprites;
       final estilo = Style(
         name: lido.name,
         theme: lido.theme,
         center: lido.center,
         zoom: lido.zoom,
-        providers: TileProviders({
-          for (final e in lido.providers.tileProviderBySource.entries)
-            e.key: _ProvedorComLog(e.value, log),
-        }),
+        providers: lido.providers,
         sprites: sprites == null
             ? null
             : SpriteStyle(
@@ -91,33 +87,4 @@ class _CamadaMapaBaseState extends State<CamadaMapaBase> {
       ),
     );
   }
-}
-
-/// Provedor de tiles que registra no log do fluxo cada tile pedido ao
-/// OpenFreeMap (duração, tamanho e, em falha, o erro).
-class _ProvedorComLog extends VectorTileProvider {
-  _ProvedorComLog(this._inner, this._log);
-
-  final VectorTileProvider _inner;
-  final FlowLog _log;
-
-  @override
-  Future<Uint8List> provide(TileIdentity tile) => _log.chamadaExterna(
-    'openfreemap',
-    'tile',
-    () => _inner.provide(tile),
-    tamanho: (bytes) => bytes.length,
-  );
-
-  @override
-  int get maximumZoom => _inner.maximumZoom;
-
-  @override
-  int get minimumZoom => _inner.minimumZoom;
-
-  @override
-  TileOffset get tileOffset => _inner.tileOffset;
-
-  @override
-  TileProviderType get type => _inner.type;
 }

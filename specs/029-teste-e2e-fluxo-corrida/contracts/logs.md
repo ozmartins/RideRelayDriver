@@ -41,9 +41,9 @@ Idêntico nos dois repositórios (motorista e passageiro). Mudou aqui ⇒ muda l
 `evento.descartou`, `corrida.estado` (`motivo` = novo estado), `recibo.emitiu`, `recibo.confirmou`,
 `externo.chamada`, `externo.falha`, `log.rotacao`.
 
-`externo.chamada` registra **toda** chamada a Photon, OpenFreeMap (estilo, tiles, sprites) ou
+`externo.chamada` registra **toda** chamada a Photon, OpenFreeMap (estilo e sprites; os tiles não são registrados) ou
 openrouteservice, com `res` `ok` ou `falha`, `ms` e o que foi consultado (`comp` = `rota`,
-`geocodificacao`, `estilo`, `tile`, `sprite`). Em falha vem também um `externo.falha`, que é o sinal
+`geocodificacao`, `estilo`, `sprite`). Em falha vem também um `externo.falha`, que é o sinal
 usado pelo relatório para atribuir a origem. Resposta válida sem resultado ("nenhum endereço") é
 `ok` com `motivo` `sem_resultado`.
 

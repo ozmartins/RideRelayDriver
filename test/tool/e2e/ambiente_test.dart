@@ -413,5 +413,21 @@ void main() {
       );
       expect(localizarEmulator({}, sistema), 'emulator');
     });
+
+    test('localizarAdb acha platform-tools no SDK, inclusive o do Windows', () {
+      sistema.arquivos.add(
+        'C:/Users/u/AppData/Local/Android/Sdk/platform-tools/adb.exe',
+      );
+      expect(
+        localizarAdb({'LOCALAPPDATA': 'C:/Users/u/AppData/Local'}, sistema),
+        'C:/Users/u/AppData/Local/Android/Sdk/platform-tools/adb.exe',
+      );
+      sistema.arquivos.add('/sdk/platform-tools/adb');
+      expect(
+        localizarAdb({'ANDROID_HOME': '/sdk'}, sistema),
+        '/sdk/platform-tools/adb',
+      );
+      expect(localizarAdb({}, sistema), 'adb');
+    });
   });
 }

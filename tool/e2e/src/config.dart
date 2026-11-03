@@ -81,3 +81,8 @@ const int tetoDeCiclosExecutados = 80;
 /// Margem do `since` do observador (F1 da análise): o `created_at` vem do relógio
 /// do emulador, que pode estar atrasado em relação ao do hospedeiro.
 const Duration margemSinceObservador = Duration(minutes: 10);
+
+/// Memória disponível no hospedeiro (`MemAvailable`) que o roteiro espera antes
+/// de subir os emuladores de novo entre dois ciclos. Cada emulador ocupa cerca de
+/// 3 GiB; o `earlyoom` mata um deles quando sobra menos de 10 % (quickstart.md).
+const int memoriaMinimaParaEmuladorMiB = 3072;

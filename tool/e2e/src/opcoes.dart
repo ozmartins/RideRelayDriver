@@ -11,6 +11,8 @@ class OpcoesInvalidas implements Exception {
   String toString() => mensagem;
 }
 
+enum Papel { motorista, passageiro }
+
 enum Comando { executar, preparar, relatorio, verificarSaida, zerar, ajuda }
 
 class Opcoes {
@@ -26,6 +28,13 @@ class Opcoes {
     this.exigirChaveOrs = false,
     this.semPreparo = false,
     this.semJanela = false,
+    this.semReinicioEntreCiclos = false,
+    this.reinicioEntreCiclos = false,
+    this.papel,
+    this.coordenador,
+    this.porta = portaCoordenacaoPadrao,
+    this.token,
+    this.juntar,
   });
 
   final Comando comando;
@@ -39,7 +48,25 @@ class Opcoes {
   final bool exigirChaveOrs;
   final bool semPreparo;
   final bool semJanela;
+  final bool semReinicioEntreCiclos;
+
+  /// Só com `--papel`: liga o reinício do emulador entre ciclos, que nesse modo
+  /// vem desligado (um emulador por máquina não disputa memória).
+  final bool reinicioEntreCiclos;
+
+  /// Duas máquinas (`contracts/coordenacao.md`); nulo = modo de uma máquina.
+  final Papel? papel;
+
+  /// `ip:porta` do coordenador (só com `--papel motorista`).
+  final String? coordenador;
+  final int porta;
+  final String? token;
+
+  /// Só com `--relatorio`: pasta da execução da outra máquina, para juntar.
+  final String? juntar;
 }
+
+const int portaCoordenacaoPadrao = 8765;
 
 const String textoDeAjuda =
     '''
@@ -63,6 +90,18 @@ Opções:
   --saida DIR            pasta de saída (padrão e2e_saida)
   --sem-preparo          não sobe emuladores nem instala apps (já estão prontos)
   --sem-janela           emuladores sem janela (-no-window), se o roteiro os iniciar
+  --sem-reinicio-entre-ciclos
+                         não desliga e sobe os emuladores entre um ciclo e o próximo
+  --reinicio-entre-ciclos
+                         (só com --papel) reinicia o emulador entre os ciclos; desligado
+                         por padrão nesse modo
+  --papel P              motorista|passageiro: opera só o emulador do papel, em duas
+                         máquinas; o passageiro coordena (contracts/coordenacao.md)
+  --coordenador IP:PORTA (só com --papel motorista) endereço do coordenador
+  --porta N              (só com --papel passageiro; padrão $portaCoordenacaoPadrao)
+  --token SEGREDO        (obrigatório com --papel) segredo compartilhado
+  --juntar DIR           (só com --relatorio) junta a execução da outra máquina, copiada
+                         para DIR (a pasta `execucao` dela), num relatório só
   --exigir-chave-ors     recusa se a chave do openrouteservice não for encontrada
 
 Códigos de saída: 0 ok; 1 execução parcial ou varredura reprovada; 2 uso incorreto
@@ -78,6 +117,11 @@ Opcoes parseOpcoes(List<String> args) {
     'avd-motorista',
     'avd-passageiro',
     'saida',
+    'papel',
+    'coordenador',
+    'porta',
+    'token',
+    'juntar',
   };
   const semValor = {
     'executar',
@@ -91,6 +135,8 @@ Opcoes parseOpcoes(List<String> args) {
     'preparar',
     'sem-preparo',
     'sem-janela',
+    'sem-reinicio-entre-ciclos',
+    'reinicio-entre-ciclos',
   };
   for (var i = 0; i < args.length; i++) {
     var a = args[i];
@@ -167,8 +213,57 @@ Opcoes parseOpcoes(List<String> args) {
     );
   }
 
+  if (flags.contains('reinicio-entre-ciclos') && valores['papel'] == null) {
+    throw OpcoesInvalidas('--reinicio-entre-ciclos exige --papel');
+  }
+  if (valores.containsKey('juntar') && comando != Comando.relatorio) {
+    throw OpcoesInvalidas('--juntar só vale com --relatorio');
+  }
+  Papel? papel;
+  final papelTexto = valores['papel'];
+  if (papelTexto != null) {
+    papel = Papel.values.where((p) => p.name == papelTexto).firstOrNull;
+    if (papel == null) {
+      throw OpcoesInvalidas('--papel inválido: $papelTexto');
+    }
+  }
+  final coordenador = valores['coordenador'];
+  final token = valores['token'];
+  if (papel == null &&
+      (coordenador != null || token != null || valores.containsKey('porta'))) {
+    throw OpcoesInvalidas('--coordenador, --porta e --token exigem --papel');
+  }
+  if (papel != null) {
+    if (token == null || token.isEmpty) {
+      throw OpcoesInvalidas('--papel exige --token');
+    }
+    if (papel == Papel.motorista && coordenador == null) {
+      throw OpcoesInvalidas('--papel motorista exige --coordenador IP:PORTA');
+    }
+    if (papel == Papel.passageiro && coordenador != null) {
+      throw OpcoesInvalidas('--coordenador só vale com --papel motorista');
+    }
+    if (papel == Papel.motorista && valores.containsKey('porta')) {
+      throw OpcoesInvalidas('--porta só vale com --papel passageiro');
+    }
+    if (comando == Comando.relatorio || comando == Comando.zerar) {
+      throw OpcoesInvalidas('--papel não combina com --relatorio nem --zerar');
+    }
+  }
+  if (coordenador != null &&
+      !RegExp(r'^[^:\s]+:\d{1,5}$').hasMatch(coordenador)) {
+    throw OpcoesInvalidas('--coordenador inválido: $coordenador');
+  }
+  final porta = inteiro('porta') ?? portaCoordenacaoPadrao;
+  if (porta > 65535) throw OpcoesInvalidas('--porta inválida: $porta');
+
   return Opcoes(
     comando: comando,
+    papel: papel,
+    coordenador: coordenador,
+    porta: porta,
+    token: token,
+    juntar: valores['juntar'],
     retomar: flags.contains('retomar'),
     ensaio: ensaio,
     metaValidos: meta,
@@ -179,5 +274,7 @@ Opcoes parseOpcoes(List<String> args) {
     exigirChaveOrs: flags.contains('exigir-chave-ors'),
     semPreparo: flags.contains('sem-preparo'),
     semJanela: flags.contains('sem-janela'),
+    semReinicioEntreCiclos: flags.contains('sem-reinicio-entre-ciclos'),
+    reinicioEntreCiclos: flags.contains('reinicio-entre-ciclos'),
   );
 }

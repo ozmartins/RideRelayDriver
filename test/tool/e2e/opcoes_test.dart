@@ -85,6 +85,12 @@ void main() {
     final o = parseOpcoes(['--executar', '--sem-preparo', '--sem-janela']);
     expect(o.semPreparo, isTrue);
     expect(o.semJanela, isTrue);
+    expect(o.semReinicioEntreCiclos, isFalse);
+    expect(
+      parseOpcoes(['--executar', '--sem-reinicio-entre-ciclos'])
+          .semReinicioEntreCiclos,
+      isTrue,
+    );
     expect(parseOpcoes(['--executar']).semPreparo, isFalse);
     expect(
       () => parseOpcoes(['--preparar', '--sem-preparo']),
@@ -92,6 +98,94 @@ void main() {
     );
     expect(
       () => parseOpcoes(['--preparar', '--executar']),
+      throwsA(isA<OpcoesInvalidas>()),
+    );
+  });
+
+  group('duas máquinas (--papel)', () {
+    test('sem --papel o modo de uma máquina continua igual', () {
+      final o = parseOpcoes(['--executar']);
+      expect(o.papel, isNull);
+      expect(o.coordenador, isNull);
+      expect(o.porta, 8765);
+    });
+
+    test('motorista exige coordenador e token', () {
+      final o = parseOpcoes([
+        '--executar',
+        '--papel=motorista',
+        '--coordenador=192.168.0.10:8765',
+        '--token=abc',
+      ]);
+      expect(o.papel, Papel.motorista);
+      expect(o.coordenador, '192.168.0.10:8765');
+      expect(o.token, 'abc');
+    });
+
+    test('passageiro aceita porta própria', () {
+      final o = parseOpcoes([
+        '--executar',
+        '--papel=passageiro',
+        '--porta=9000',
+        '--token=abc',
+      ]);
+      expect(o.papel, Papel.passageiro);
+      expect(o.porta, 9000);
+    });
+
+    test('--reinicio-entre-ciclos só existe com --papel', () {
+      final o = parseOpcoes([
+        '--executar',
+        '--papel=passageiro',
+        '--token=a',
+        '--reinicio-entre-ciclos',
+      ]);
+      expect(o.reinicioEntreCiclos, isTrue);
+      expect(parseOpcoes(['--executar']).reinicioEntreCiclos, isFalse);
+      expect(
+        () => parseOpcoes(['--executar', '--reinicio-entre-ciclos']),
+        throwsA(isA<OpcoesInvalidas>()),
+      );
+    });
+
+    test('combinações inválidas', () {
+      for (final args in [
+        ['--executar', '--papel=outro', '--token=a'],
+        ['--executar', '--papel=motorista', '--token=a'],
+        ['--executar', '--papel=motorista', '--coordenador=x:1'],
+        ['--executar', '--papel=passageiro'],
+        ['--executar', '--papel=passageiro', '--token=a', '--coordenador=x:1'],
+        [
+          '--executar',
+          '--papel=motorista',
+          '--token=a',
+          '--coordenador=x:1',
+          '--porta=9',
+        ],
+        ['--executar', '--coordenador=x:1'],
+        ['--executar', '--token=a'],
+        ['--executar', '--papel=passageiro', '--token=a', '--porta=70000'],
+        [
+          '--executar',
+          '--papel=motorista',
+          '--token=a',
+          '--coordenador=semporta',
+        ],
+        ['--relatorio', '--papel=passageiro', '--token=a'],
+      ]) {
+        expect(
+          () => parseOpcoes(args),
+          throwsA(isA<OpcoesInvalidas>()),
+          reason: '$args',
+        );
+      }
+    });
+  });
+
+  test('--juntar só vale com --relatorio', () {
+    expect(parseOpcoes(['--relatorio', '--juntar', 'outra']).juntar, 'outra');
+    expect(
+      () => parseOpcoes(['--executar', '--juntar', 'outra']),
       throwsA(isA<OpcoesInvalidas>()),
     );
   });

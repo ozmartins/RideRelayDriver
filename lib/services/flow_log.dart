@@ -134,3 +134,34 @@ extension FlowLogEventos on FlowLog {
     );
   }
 }
+
+/// Classifica a falha de um serviço externo num código curto. O texto do erro
+/// é só lido, nunca copiado para o log.
+String motivoExterno(Object erro) {
+  final texto = erro.toString().toLowerCase();
+  if (texto.contains('429')) return 'http429';
+  final http = RegExp(r'(?:http|status)\s*(\d{3})').firstMatch(texto);
+  if (http != null) return 'http${http.group(1)}';
+  if (texto.contains('timeout') || texto.contains('timed out')) {
+    return 'timeout';
+  }
+  if (texto.contains('socket') ||
+      texto.contains('host lookup') ||
+      texto.contains('connection') ||
+      texto.contains('clientexception')) {
+    return 'rede';
+  }
+  return 'erro';
+}
+
+/// Falha de um serviço externo (Photon, OpenFreeMap, ORS): é o sinal que o
+/// relatório usa para atribuir a falha ao serviço (FR-021a).
+extension FlowLogExterno on FlowLog {
+  void externoFalhou(String servico, Object erro) => registrar(
+    comp: 'externo',
+    op: 'externo.falha',
+    res: FlowLog.falha,
+    ext: servico,
+    motivo: motivoExterno(erro),
+  );
+}

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart';
 
+import '../services/flow_log.dart';
+
 /// Camada de base do mapa: tiles vetoriais do OpenFreeMap (estilo `positron`,
 /// claro e neutro), tingidos com o lilás `mapa-base` da identidade visual.
 ///
@@ -10,7 +12,10 @@ import 'package:vector_map_tiles/vector_map_tiles.dart';
 /// único serviço de tiles). Os marcadores e a rota, camadas acima desta,
 /// continuam funcionando.
 class CamadaMapaBase extends StatefulWidget {
-  const CamadaMapaBase({super.key});
+  const CamadaMapaBase({super.key, this.log = const NoFlowLog()});
+
+  /// Log do fluxo (feature 029): falha ao ler o estilo do OpenFreeMap.
+  final FlowLog log;
 
   static const estiloUrl = 'https://tiles.openfreemap.org/styles/positron';
 
@@ -34,7 +39,8 @@ class _CamadaMapaBaseState extends State<CamadaMapaBase> {
     try {
       final estilo = await StyleReader(uri: CamadaMapaBase.estiloUrl).read();
       if (mounted) setState(() => _estilo = estilo);
-    } catch (_) {
+    } catch (erro) {
+      widget.log.externoFalhou('openfreemap', erro);
       // Sem estilo, o mapa fica só com o fundo; nada a informar ao usuário
       // além do que a própria ausência de tiles já mostra.
     }

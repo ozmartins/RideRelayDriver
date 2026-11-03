@@ -8,6 +8,10 @@ import 'package:driver/services/flow_log.dart';
 import 'package:driver/services/flow_log_file.dart';
 import 'package:driver/services/relay_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:driver/domain/route_trace.dart';
+import 'package:driver/services/reverse_geocoding_service.dart';
+import 'package:driver/services/route_distance_service.dart';
 
 import '../support/memory_flow_log.dart';
 import 'event_feed_test.dart' show signedPayload;
@@ -198,4 +202,75 @@ void main() {
       log.registrar(comp: 'app', op: 'app.inicio');
     });
   });
+
+  group('falha de serviço externo', () {
+    test('motivoExterno classifica sem copiar o texto do erro', () {
+      expect(motivoExterno(Exception('HTTP 429 Too Many Requests')), 'http429');
+      expect(motivoExterno(Exception('status 503')), 'http503');
+      expect(motivoExterno(TimeoutException('x')), 'timeout');
+      expect(
+        motivoExterno(const SocketException('Failed host lookup')),
+        'rede',
+      );
+      expect(motivoExterno(Exception('Rua das Flores 123')), 'erro');
+    });
+
+    test('registra externo.falha só com serviço e código, e relança', () async {
+      final log = MemoryFlowLog();
+      final rota = LoggingRouteDistanceService(_RotaQueFalha(), log);
+      await expectLater(
+        rota.estimate(
+          origin: const LatLng(-27.5, -48.5),
+          destination: const LatLng(-27.6, -48.6),
+        ),
+        throwsA(isA<RouteDistanceFailure>()),
+      );
+      final foto = LoggingReverseGeocodingService(
+        _FotonQueFalha('HTTP 429'),
+        log,
+      );
+      await expectLater(
+        foto.addressOf(const LatLng(-27.5, -48.5)),
+        throwsA(isA<ReverseGeocodingFailure>()),
+      );
+      expect(log.ops, ['externo.falha', 'externo.falha']);
+      expect([for (final l in log.linhas) l['ext']], ['ors', 'photon']);
+      expect(log.linhas.last['motivo'], 'http429');
+      expect(log.texto, isNot(contains('-27.5')));
+    });
+
+    test('"nenhum endereço" é resposta do serviço, não falha', () async {
+      final log = MemoryFlowLog();
+      final foto = LoggingReverseGeocodingService(
+        _FotonQueFalha('nenhum endereço encontrado'),
+        log,
+      );
+      await expectLater(
+        foto.addressOf(const LatLng(0, 0)),
+        throwsA(isA<ReverseGeocodingFailure>()),
+      );
+      expect(log.linhas, isEmpty);
+    });
+  });
+}
+
+class _RotaQueFalha implements RouteDistanceService {
+  @override
+  Future<RouteEstimate> estimate({
+    required LatLng origin,
+    required LatLng destination,
+  }) async => throw const RouteDistanceFailure('HTTP 429');
+  @override
+  Future<RouteTrace> trace({
+    required LatLng origin,
+    required LatLng destination,
+  }) async => throw const RouteDistanceFailure('HTTP 429');
+}
+
+class _FotonQueFalha implements ReverseGeocodingService {
+  _FotonQueFalha(this.msg);
+  final String msg;
+  @override
+  Future<String> addressOf(LatLng point) async =>
+      throw ReverseGeocodingFailure(msg);
 }

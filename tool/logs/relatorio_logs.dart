@@ -216,8 +216,9 @@ SaidaLogs gerarRelatorioLogs(
   );
   b.writeln(
     '- Falhas sem sinal no log ficam `indeterminada` e contam como '
-    'aplicativo (FR-026). `externo.falha` ainda não é emitido pelos apps: '
-    'nenhuma falha é atribuída a serviço externo por este relatório.',
+    'aplicativo (FR-026). Serviço externo só é atribuído quando há '
+    '`externo.falha` na janela do ciclo; falha de tile isolado do OpenFreeMap '
+    'não é registrada (só a leitura do estilo).',
   );
   if (!a.temPassageiro) {
     b.writeln(

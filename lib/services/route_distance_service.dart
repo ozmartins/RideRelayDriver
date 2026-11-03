@@ -4,6 +4,7 @@ import 'package:open_route_service/open_route_service.dart';
 
 import '../domain/geo_distance.dart';
 import '../domain/route_trace.dart';
+import 'flow_log.dart';
 import 'ors_api_key.dart';
 
 /// Resultado de um cálculo de rota real (rodoviária, não linha reta) entre
@@ -216,4 +217,39 @@ class FallbackRouteDistanceService implements RouteDistanceService {
     required LatLng origin,
     required LatLng destination,
   }) => _inner.trace(origin: origin, destination: destination);
+}
+
+/// Registra no log do fluxo as falhas do serviço decorado (openrouteservice),
+/// sem alterar o resultado nem a exceção.
+class LoggingRouteDistanceService implements RouteDistanceService {
+  LoggingRouteDistanceService(this._inner, this._log);
+
+  final RouteDistanceService _inner;
+  final FlowLog _log;
+
+  @override
+  Future<RouteEstimate> estimate({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    try {
+      return await _inner.estimate(origin: origin, destination: destination);
+    } on Object catch (erro) {
+      _log.externoFalhou('ors', erro);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<RouteTrace> trace({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    try {
+      return await _inner.trace(origin: origin, destination: destination);
+    } on Object catch (erro) {
+      _log.externoFalhou('ors', erro);
+      rethrow;
+    }
+  }
 }

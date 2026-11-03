@@ -165,9 +165,12 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
       widget.locationService ?? const GeolocatorLocationService();
   late final RouteDistanceService _routeDistanceService =
       widget.routeDistanceService ??
-      FallbackRouteDistanceService(OrsRouteDistanceService());
+      FallbackRouteDistanceService(
+        LoggingRouteDistanceService(OrsRouteDistanceService(), _flowLog),
+      );
   late final ReverseGeocodingService _reverseGeocodingService =
-      widget.reverseGeocodingService ?? PhotonReverseGeocodingService();
+      widget.reverseGeocodingService ??
+      LoggingReverseGeocodingService(PhotonReverseGeocodingService(), _flowLog);
 
   /// Mesmo `KeyValueStore` já usado por `RelayRepository` — os dois novos
   /// dados persistidos da feature 010 (D1/D6 de `research.md`) não
@@ -432,6 +435,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
               rideRatingStore: _rideRatingStore,
               receiptStore: _receiptStore,
               receiptService: _receiptService,
+              flowLog: _flowLog,
             ),
     );
   }
@@ -474,6 +478,7 @@ class _Shell extends StatefulWidget {
     required this.rideRatingStore,
     required this.receiptStore,
     required this.receiptService,
+    required this.flowLog,
   });
 
   final Identity? identity;
@@ -490,6 +495,7 @@ class _Shell extends StatefulWidget {
   final RideRatingStore rideRatingStore;
   final ReceiptStore receiptStore;
   final ReceiptService receiptService;
+  final FlowLog flowLog;
 
   /// Sempre não nulo aqui: o `_Shell` só é exibido depois que FR-001 decidiu
   /// que o cadastro existe. Mesmo assim é passado, e não lido de um estado
@@ -531,6 +537,7 @@ class _ShellState extends State<_Shell> {
         rideRatingStore: widget.rideRatingStore,
         receiptStore: widget.receiptStore,
         receiptService: widget.receiptService,
+        flowLog: widget.flowLog,
         driverProfile: widget.driverProfile,
       ),
       MoreScreen(

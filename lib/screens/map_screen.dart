@@ -25,6 +25,7 @@ import '../domain/service_state.dart';
 import '../services/cadastro_store.dart';
 import 'identidade_visual.dart';
 import '../services/event_feed.dart';
+import '../services/flow_log.dart';
 import '../services/identity_service.dart';
 import '../services/location_service.dart';
 import '../services/background/service_controller.dart';
@@ -69,6 +70,7 @@ class MapScreen extends StatefulWidget {
     this.serviceController,
     this.receiptStore,
     this.receiptService,
+    this.flowLog = const NoFlowLog(),
   });
 
   final LocationService locationService;
@@ -103,6 +105,9 @@ class MapScreen extends StatefulWidget {
 
   /// Recebe `20014`/`20015` do feed (feature 026). Nulo = recibos desligados.
   final ReceiptService? receiptService;
+
+  /// Log do fluxo (feature 029): ações do usuário e falhas de serviços externos.
+  final FlowLog flowLog;
 
   /// Cadastro corrente do motorista, repassado pela casca a cada alteração.
   /// A tela fica montada o tempo todo, então sem isto uma edição de formas de
@@ -404,7 +409,16 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Registra uma ação do usuário no log do fluxo (feature 029).
+  void _acao(String nome, {String? guid}) => widget.flowLog.registrar(
+    comp: 'tela',
+    op: 'tela.acao',
+    motivo: nome,
+    guid: guid,
+  );
+
   Future<void> _reconectarRelays() async {
+    _acao('reconectar_relays');
     // Desabilita o botão durante a chamada: toque duplo não sobrepõe rodadas.
     setState(() => _reconectandoRelays = true);
     try {
@@ -562,6 +576,7 @@ class _MapScreenState extends State<MapScreen> {
     final ativa = _activeRide;
     if (ativa == null || !DriverRideRules.canCancelRide(_rideStatus)) return;
 
+    _acao('cancelar_corrida', guid: ativa.quoteId);
     _encerrarCorridaLocalmente();
     unawaited(_publicarCancelamento(ativa));
   }
@@ -659,6 +674,7 @@ class _MapScreenState extends State<MapScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => RideRatingModal(
         onConfirm: (stars) async {
+          _acao('avaliar', guid: quoteId);
           // Identidade nula (falha de inicialização, D3 de
           // specs/014-integridade-row-signing/research.md): não há chave
           // para assinar a avaliação, então ela não é persistida — mesma
@@ -678,6 +694,7 @@ class _MapScreenState extends State<MapScreen> {
           unawaited(_emitirRecibo(corrida, stars));
         },
         onSkip: () {
+          _acao('pular_avaliacao', guid: quoteId);
           Navigator.of(dialogContext).pop();
           unawaited(_emitirRecibo(corrida, null));
         },
@@ -841,9 +858,14 @@ class _MapScreenState extends State<MapScreen> {
         driverProfile: perfil,
         routeDistanceService: widget.routeDistanceService,
         reverseGeocodingService: widget.reverseGeocodingService,
-        onSendQuote: (quote) =>
-            _enviarOrcamento(dialogContext, quote, solicitacao),
-        onReject: () => Navigator.of(dialogContext).pop(),
+        onSendQuote: (quote) {
+          _acao('enviar_orcamento');
+          return _enviarOrcamento(dialogContext, quote, solicitacao);
+        },
+        onReject: () {
+          _acao('recusar_solicitacao');
+          Navigator.of(dialogContext).pop();
+        },
       ),
     );
   }
@@ -961,6 +983,7 @@ class _MapScreenState extends State<MapScreen> {
     BuildContext dialogContext,
     QuoteAccepted aceitacao,
   ) async {
+    _acao('iniciar_corrida', guid: aceitacao.quoteId);
     final origem = await widget.sentQuotesStore.originFor(aceitacao.quoteId);
     final destino = await widget.sentQuotesStore.destinationFor(
       aceitacao.quoteId,
@@ -1073,6 +1096,7 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
       final posicao = _posicao!;
+      _acao('ficar_online');
       setState(() {
         _status = AvailabilityStatus.online;
         _avisoStatus = null;
@@ -1088,6 +1112,7 @@ class _MapScreenState extends State<MapScreen> {
       );
       unawaited(_garantirPermissaoDeNotificacao());
     } else {
+      _acao('ficar_offline');
       setState(() {
         _status = AvailabilityStatus.offline;
         _avisoStatus = null;
@@ -1494,7 +1519,7 @@ class _MapScreenState extends State<MapScreen> {
                         backgroundColor: _MapaTokens.base,
                       ),
                       children: [
-                        const CamadaMapaBase(),
+                        CamadaMapaBase(log: widget.flowLog),
                         if (_rota != null && _rota!.points.length >= 2)
                           PolylineLayer(
                             polylines: [

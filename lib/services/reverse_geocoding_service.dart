@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
+import 'flow_log.dart';
+
 /// Converte uma coordenada em endereço legível (feature 015).
 abstract class ReverseGeocodingService {
   /// Devolve o endereço de [point], ou lança [ReverseGeocodingFailure].
@@ -136,5 +138,27 @@ class PhotonReverseGeocodingService implements ReverseGeocodingService {
     if (estado != null) partes.add(estado);
 
     return partes.join(', ');
+  }
+}
+
+/// Registra no log do fluxo as falhas da Photon, sem alterar o resultado.
+/// "Nenhum endereço" e "endereço vazio" são respostas do serviço, não falha.
+class LoggingReverseGeocodingService implements ReverseGeocodingService {
+  LoggingReverseGeocodingService(this._inner, this._log);
+
+  final ReverseGeocodingService _inner;
+  final FlowLog _log;
+
+  @override
+  Future<String> addressOf(LatLng point) async {
+    try {
+      return await _inner.addressOf(point);
+    } on Object catch (erro) {
+      final texto = erro.toString();
+      if (!texto.contains('nenhum endereço') && !texto.contains('vazio')) {
+        _log.externoFalhou('photon', erro);
+      }
+      rethrow;
+    }
   }
 }

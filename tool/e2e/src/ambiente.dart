@@ -7,6 +7,11 @@ import 'preparo.dart';
 import 'relogio.dart';
 import 'ui.dart';
 
+/// A saída do `adb` e do `flutter` no Windows pode vir em outra página de código
+/// (por exemplo, "daemon not running" com acentos); uma decodificação estrita
+/// derrubaria o roteiro com FormatException.
+const Utf8Codec _utf8Tolerante = Utf8Codec(allowMalformed: true);
+
 /// Preparo do ambiente da execução: sobe os dois emuladores e instala os apps
 /// do motorista e do passageiro. Só mexe em processos do hospedeiro (emulador,
 /// `flutter build`, `adb install`); não apaga dados nem abre telas dos apps, o
@@ -60,8 +65,8 @@ class SistemaReal implements Sistema {
         workingDirectory: diretorio,
         // No Windows `flutter` é um .bat, que só roda por um shell.
         runInShell: Platform.isWindows,
-        stdoutEncoding: utf8,
-        stderrEncoding: utf8,
+        stdoutEncoding: _utf8Tolerante,
+        stderrEncoding: _utf8Tolerante,
       ).timeout(timeout);
     } on ProcessException catch (e) {
       throw PreCondicaoFalha(

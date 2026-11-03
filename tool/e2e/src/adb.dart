@@ -2,6 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// A saída do `adb` e do `flutter` no Windows pode vir em outra página de código
+/// (por exemplo, "daemon not running" com acentos); uma decodificação estrita
+/// derrubaria o roteiro com FormatException.
+const Utf8Codec _utf8Tolerante = Utf8Codec(allowMalformed: true);
+
 /// Falha de infraestrutura do `adb`: dispositivo ausente, comando sem resposta.
 /// Vira falha de **ambiente de teste** na classificação (D9, regra 1).
 class AdbFalha implements Exception {
@@ -95,8 +100,8 @@ class AdbProcesso implements Adb {
       final r = await Process.run(
         executavel,
         args,
-        stdoutEncoding: binario ? null : utf8,
-        stderrEncoding: utf8,
+        stdoutEncoding: binario ? null : _utf8Tolerante,
+        stderrEncoding: _utf8Tolerante,
       ).timeout(timeoutPadrao);
       if (r.exitCode != 0) {
         throw AdbFalha('adb ${args.take(3).join(' ')} saiu com ${r.exitCode}');

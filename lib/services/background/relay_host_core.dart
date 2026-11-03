@@ -6,6 +6,7 @@ import '../../domain/nostr_event.dart';
 import '../../domain/ride_request_filter.dart';
 import '../../domain/service_state.dart';
 import '../event_verifier.dart';
+import '../flow_log.dart';
 import '../prototype_marker.dart';
 import '../relay_connection.dart';
 import '../relay_gateway.dart';
@@ -36,6 +37,7 @@ class RelayHostCore {
     this.maxSeenIds = 500,
     DateTime Function()? now,
     this.onStopRequested,
+    this.log = const NoFlowLog(),
   }) : _now = now ?? DateTime.now;
 
   /// A conexão com os relays que este serviço hospeda.
@@ -61,6 +63,9 @@ class RelayHostCore {
 
   /// Tamanho da janela de ids vistos, para a memória não crescer sem limite.
   final int maxSeenIds;
+
+  /// Log do fluxo (feature 029), gravado pelo isolate do serviço.
+  final FlowLog log;
 
   /// Chamado quando a interface pede para encerrar o serviço.
   final Future<void> Function()? onStopRequested;
@@ -153,6 +158,13 @@ class RelayHostCore {
     // 1. assinatura antes de qualquer outro processamento (Princípio IV)
     if (!verifier.isValid(payload)) {
       _discardedInvalid++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'servico',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'assinatura',
+      );
       return;
     }
 
@@ -163,6 +175,13 @@ class RelayHostCore {
     // 2. marcador do protótipo (contrato, regra 6)
     if (!hasPrototypeMarker(payload['tags'] as List<dynamic>?)) {
       _discardedUnmarked++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'servico',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'marcador',
+      );
       return;
     }
 
@@ -178,6 +197,13 @@ class RelayHostCore {
       );
       if (!decisao.accepted) {
         _discardedOutOfCoverage++;
+        log.eventoRecebido(
+          incoming,
+          comp: 'servico',
+          op: 'evento.descartou',
+          res: FlowLog.descartado,
+          motivo: 'raio',
+        );
         return;
       }
     }
@@ -186,9 +212,22 @@ class RelayHostCore {
     final id = payload['id'] as String;
     if (!_seenIds.add(id)) {
       _discardedDuplicate++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'servico',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'duplicado',
+      );
       return;
     }
     if (_seenIds.length > maxSeenIds) _seenIds.remove(_seenIds.first);
+    log.eventoRecebido(
+      incoming,
+      comp: 'servico',
+      op: 'evento.recebeu',
+      res: FlowLog.ok,
+    );
 
     channel.send(
       ServiceIncoming(relayUrl: incoming.relayUrl, payload: payload),

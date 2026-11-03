@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../domain/active_ride.dart';
 import '../domain/driver_ride_status.dart';
+import 'flow_log.dart';
 import 'key_value_store.dart';
 
 /// Persiste o estado do motorista introduzido pela feature 010 — mesmo
@@ -79,5 +80,32 @@ class PreferencesRideStateStore implements RideStateStore {
           'destinationArrivalNotified': active.destinationArrivalNotified,
       }),
     );
+  }
+}
+
+/// Registra no log do fluxo cada mudança de estado da corrida (feature 029),
+/// sem alterar o que é persistido. Só o novo estado e o `guid_corrida`.
+class LoggingRideStateStore implements RideStateStore {
+  LoggingRideStateStore(this._inner, this._log);
+
+  final RideStateStore _inner;
+  final FlowLog _log;
+  DriverRideStatus? _ultimo;
+
+  @override
+  Future<(DriverRideStatus, ActiveRide?)> load() => _inner.load();
+
+  @override
+  Future<void> save(DriverRideStatus status, ActiveRide? active) async {
+    if (status != _ultimo) {
+      _ultimo = status;
+      _log.registrar(
+        comp: 'corrida',
+        op: 'corrida.estado',
+        motivo: status.name.toLowerCase(),
+        guid: active?.quoteId,
+      );
+    }
+    await _inner.save(status, active);
   }
 }

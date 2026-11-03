@@ -17,6 +17,8 @@ import 'services/background/service_controller.dart';
 import 'services/cadastro_store.dart';
 import 'services/consumed_kinds.dart';
 import 'services/event_feed.dart';
+import 'services/flow_log.dart';
+import 'services/flow_log_file.dart';
 import 'services/geolocator_location_service.dart';
 import 'services/identity_service.dart';
 import 'services/key_store.dart';
@@ -64,6 +66,7 @@ class CorridasDriverApp extends StatefulWidget {
     this.routeDistanceService,
     this.reverseGeocodingService,
     this.receiptStore,
+    this.flowLog,
   });
 
   /// Dependências injetáveis. Em produção ficam nulas e as implementações
@@ -95,6 +98,9 @@ class CorridasDriverApp extends StatefulWidget {
   /// Idem, para os recibos de reputação (feature 026) — nenhum teste toca SQLite.
   final ReceiptStore? receiptStore;
 
+  /// Log do fluxo (feature 029). Nulo em produção (arquivo); testes não gravam.
+  final FlowLog? flowLog;
+
   @override
   State<CorridasDriverApp> createState() => _CorridasDriverAppState();
 }
@@ -104,6 +110,11 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   late final IdentityService _identityService = IdentityService(
     widget.keyStore ?? SecureKeyStore(),
   );
+  late final FlowLog _flowLog =
+      widget.flowLog ??
+      (_remoto
+          ? FileFlowLog(papel: 'motorista', iso: 'ui')
+          : const NoFlowLog());
   late final RelayRepository _relayRepository = RelayRepository(
     widget.keyValueStore ?? PreferencesStore(),
   );
@@ -137,6 +148,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
           : RelayService(
               _gateway!,
               subscriptionKinds: driverConsumedKinds.toList(),
+              log: _flowLog,
             ));
   late final EventFeed _feed = EventFeed(
     incoming: _relayService.incoming,
@@ -144,6 +156,8 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
     // Feature 027: o recorte geográfico do `20001` usa a cobertura que a tela
     // entrega à conexão ao ficar online.
     coverage: () => _relayService.coverage,
+    // Com o serviço em segundo plano, quem registra o que chega é ele.
+    log: _remoto ? const NoFlowLog() : _flowLog,
   );
   late final CadastroStore _cadastroStore =
       widget.cadastroStore ?? SqfliteCadastroStore();
@@ -160,8 +174,9 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   /// justificam um parâmetro injetável próprio: testes que já injetam
   /// `keyValueStore` (via `CorridasDriverApp`) recebem estes dois dublês
   /// automaticamente, sobre o mesmo armazenamento em memória.
-  late final RideStateStore _rideStateStore = PreferencesRideStateStore(
-    widget.keyValueStore ?? PreferencesStore(),
+  late final RideStateStore _rideStateStore = LoggingRideStateStore(
+    PreferencesRideStateStore(widget.keyValueStore ?? PreferencesStore()),
+    _flowLog,
   );
   late final SentQuotesStore _sentQuotesStore = PreferencesSentQuotesStore(
     widget.keyValueStore ?? PreferencesStore(),
@@ -173,6 +188,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
     store: _receiptStore,
     identityService: _identityService,
     identity: () => _identity,
+    log: _flowLog,
     publish: (signed) async {
       final resultados = await _relayService
           .publish(signed.event, payload: signed.payload)
@@ -223,6 +239,7 @@ class _CorridasDriverAppState extends State<CorridasDriverApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _flowLog.registrar(comp: 'app', op: 'app.inicio');
     _relayService.statusChanges.listen((_) {
       _refresh();
       // 1.7 passo 5: a cada reconexão de relay, reenvia os recibos pendentes.

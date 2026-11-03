@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import 'event_verifier.dart';
+import 'flow_log.dart';
 import 'prototype_marker.dart';
 import 'relay_gateway.dart';
 
@@ -21,6 +22,7 @@ class EventFeed {
     this.maxEvents = 200,
     this.acceptedKinds = const {NostrEvent.kindRideRequest},
     this.coverage,
+    this.log = const NoFlowLog(),
   }) {
     _subscription = incoming.listen(_handle);
   }
@@ -36,6 +38,10 @@ class EventFeed {
   /// recusa por falta de referência é do `RideRequestFilter`, que conhece o
   /// estado online.
   final DriverCoverage? Function()? coverage;
+
+  /// Log do fluxo (feature 029). Em produção só é injetado quando a conexão
+  /// está neste isolate; com o serviço em segundo plano quem registra é ele.
+  final FlowLog log;
 
   /// Limite da janela de eventos mantida em memória.
   final int maxEvents;
@@ -80,6 +86,13 @@ class EventFeed {
     // 1. verificação de assinatura antes de tudo (FR-009)
     if (!verifier.isValid(payload)) {
       _discardedInvalid++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'feed',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'assinatura',
+      );
       return;
     }
 
@@ -92,6 +105,13 @@ class EventFeed {
     // inscrição não é garantia: o relay pode ignorá-lo.
     if (!hasPrototypeMarker(payload['tags'] as List<dynamic>?)) {
       _discardedUnmarked++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'feed',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'marcador',
+      );
       return;
     }
 
@@ -106,6 +126,13 @@ class EventFeed {
       );
       if (!decisao.accepted) {
         _discardedOutOfCoverage++;
+        log.eventoRecebido(
+          incoming,
+          comp: 'feed',
+          op: 'evento.descartou',
+          res: FlowLog.descartado,
+          motivo: 'raio',
+        );
         return;
       }
     }
@@ -115,6 +142,13 @@ class EventFeed {
     // 3. deduplicação por identificador (FR-010)
     if (!_seenIds.add(id)) {
       _discardedDuplicate++;
+      log.eventoRecebido(
+        incoming,
+        comp: 'feed',
+        op: 'evento.descartou',
+        res: FlowLog.descartado,
+        motivo: 'duplicado',
+      );
       return;
     }
 
@@ -152,6 +186,12 @@ class EventFeed {
     }
 
     _accepted++;
+    log.eventoRecebido(
+      incoming,
+      comp: 'feed',
+      op: 'evento.recebeu',
+      res: FlowLog.ok,
+    );
     if (kDebugMode && _accepted % 25 == 0) {
       debugPrint(
         '[medicao] rajada: $_accepted aceitos, '

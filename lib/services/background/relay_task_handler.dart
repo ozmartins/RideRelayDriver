@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../consumed_kinds.dart';
+import '../flow_log_file.dart';
 import '../key_value_store.dart';
 import '../local_ride_request_notifier.dart';
 import '../ws_relay_gateway.dart';
@@ -33,6 +34,8 @@ class RelayTaskHandler extends TaskHandler {
     // registrados no isolate do serviço.
     DartPluginRegistrant.ensureInitialized();
 
+    final log = FileFlowLog(papel: 'motorista', iso: 'servico');
+    log.registrar(comp: 'servico', op: 'app.inicio');
     final gateway = WsRelayGateway();
     _gateway = gateway;
     final store = FreshPreferencesStore();
@@ -40,12 +43,14 @@ class RelayTaskHandler extends TaskHandler {
       relays: RelayService(
         gateway,
         subscriptionKinds: driverConsumedKinds.toList(),
+        log: log,
       ),
       channel: _channel,
       stateStore: ServiceStateStore(store),
       relayRepository: RelayRepository(store),
       notifier: LocalRideRequestNotifier(),
       acceptedKinds: driverConsumedKinds,
+      log: log,
       onStopRequested: () async {
         await FlutterForegroundTask.stopService();
       },

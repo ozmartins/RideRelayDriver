@@ -5,6 +5,7 @@ import '../domain/active_ride.dart';
 import '../domain/identity.dart';
 import '../domain/nostr_event.dart';
 import '../domain/receipt.dart';
+import 'flow_log.dart';
 import 'identity_service.dart';
 import 'receipt_store.dart';
 import 'receipt_signature.dart';
@@ -42,7 +43,11 @@ class ReceiptService {
     required this._publish,
     DateTime Function()? now,
     this.retryInterval = const Duration(seconds: 60),
+    this.log = const NoFlowLog(),
   }) : _now = now ?? DateTime.now;
+
+  /// Log do fluxo (feature 029): só ids e o `guid_corrida`, nunca o conteúdo.
+  final FlowLog log;
 
   /// Intervalo do reenvio dos recibos pendentes (1.7 passo 5).
   final Duration retryInterval;
@@ -110,6 +115,13 @@ class ReceiptService {
 
     await _store.saveIssued(recibo); // antes de publicar: sobrevive a reinício
     await _publishReceipt(identity, recibo);
+    log.registrar(
+      comp: 'recibo',
+      op: 'recibo.emitiu',
+      res: FlowLog.ok,
+      id: recibo.idRecibo,
+      guid: ride.quoteId,
+    );
     return ReceiptIssue.issued;
   }
 
@@ -205,6 +217,13 @@ class ReceiptService {
           pendente.pubkeyAvaliado == event.authorPublicKey &&
           pendente.guidCorrida == event.referencedEventId) {
         await _store.markAcked(idRecibo);
+        log.registrar(
+          comp: 'recibo',
+          op: 'recibo.confirmou',
+          res: FlowLog.ok,
+          id: idRecibo,
+          guid: pendente.guidCorrida,
+        );
         return;
       }
     }

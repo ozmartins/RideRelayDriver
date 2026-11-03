@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/driver_coverage.dart';
 import '../domain/nostr_event.dart';
 import '../domain/relay.dart';
+import 'flow_log.dart';
 import 'relay_connection.dart';
 import 'relay_gateway.dart';
 
@@ -20,11 +21,15 @@ class RelayService implements RelayConnection {
     this.livenessInterval = const Duration(seconds: 30),
     this.livenessTimeout = const Duration(seconds: 10),
     this.subscriptionKinds = const [NostrEvent.kindRideRequest],
+    this.log = const NoFlowLog(),
   }) {
     _lost = _gateway.connectionLost.listen(_handleConnectionLost);
   }
 
   final RelayGateway _gateway;
+
+  /// Log do fluxo (feature 029): conexões e resultado das publicações.
+  final FlowLog log;
 
   /// Kinds pedidos na inscrição (REQ) real ao relay — MUST corresponder ao
   /// que a app efetivamente consome, conforme a seção "Forma da inscrição"
@@ -197,7 +202,23 @@ class RelayService implements RelayConnection {
     required Map<String, dynamic> payload,
   }) {
     if (!hasConnectedRelay) throw NoConnectedRelay();
-    return _gateway.publish(event, payload: payload);
+    log.registrar(
+      comp: 'relay',
+      op: 'evento.publicou',
+      kind: event.kind,
+      id: event.id,
+    );
+    return _gateway.publish(event, payload: payload).map((o) {
+      log.registrar(
+        comp: 'relay',
+        op: 'relay.ok',
+        res: o.accepted ? FlowLog.ok : FlowLog.falha,
+        kind: event.kind,
+        id: event.id,
+        relay: o.relayUrl,
+      );
+      return o;
+    });
   }
 
   /// Liga a manutenção automática das conexões exigida por FR-014: retentativa
@@ -239,6 +260,13 @@ class RelayService implements RelayConnection {
   Future<void> _handleUnresponsive(String url) async {
     final index = _relays.indexWhere((r) => r == Relay(url: url));
     if (index == -1 || _relays[index].status != RelayStatus.connected) return;
+    log.registrar(
+      comp: 'relay',
+      op: 'relay.caiu',
+      res: FlowLog.falha,
+      relay: url,
+      motivo: 'sem_resposta',
+    );
     _update(
       url,
       status: RelayStatus.unavailable,
@@ -267,6 +295,12 @@ class RelayService implements RelayConnection {
     try {
       await _gateway.connect(url).timeout(connectTimeout);
       _update(url, status: RelayStatus.connected, clearError: true);
+      log.registrar(
+        comp: 'relay',
+        op: 'relay.conectou',
+        res: FlowLog.ok,
+        relay: url,
+      );
       if (kDebugMode && !_firstConnectedReported) {
         _firstConnectedReported = true;
         debugPrint(
@@ -275,12 +309,26 @@ class RelayService implements RelayConnection {
         );
       }
     } on TimeoutException {
+      log.registrar(
+        comp: 'relay',
+        op: 'relay.conectou',
+        res: FlowLog.falha,
+        relay: url,
+        motivo: 'timeout',
+      );
       _update(
         url,
         status: RelayStatus.unavailable,
         error: 'sem resposta dentro do tempo limite',
       );
     } catch (error) {
+      log.registrar(
+        comp: 'relay',
+        op: 'relay.conectou',
+        res: FlowLog.falha,
+        relay: url,
+        motivo: 'erro',
+      );
       _update(
         url,
         status: RelayStatus.unavailable,
@@ -296,6 +344,13 @@ class RelayService implements RelayConnection {
     final index = _relays.indexWhere((r) => r == Relay(url: url));
     if (index == -1) return;
     if (_relays[index].status != RelayStatus.connected) return;
+    log.registrar(
+      comp: 'relay',
+      op: 'relay.caiu',
+      res: FlowLog.falha,
+      relay: url,
+      motivo: 'encerrada',
+    );
     _update(
       url,
       status: RelayStatus.unavailable,

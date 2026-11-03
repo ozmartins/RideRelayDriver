@@ -104,7 +104,26 @@ class SistemaReal implements Sistema {
 
 /// Caminho do binário `emulator`: `ANDROID_HOME`, `ANDROID_SDK_ROOT` e
 /// `~/Android/Sdk`, nesta ordem; se nenhum existir, confia no `PATH`.
-String localizarEmulator(Map<String, String> env, Sistema sistema) {
+String localizarEmulator(Map<String, String> env, Sistema sistema) =>
+    _procurarNoSdk(env, sistema, 'emulator', const [
+      'emulator',
+      'emulator.exe',
+    ]) ??
+    'emulator';
+
+/// Caminho do `adb` em `platform-tools` do mesmo SDK; se não achar, confia no
+/// `PATH`. No Windows o `Process.run` direto nem sempre enxerga o `adb` que o
+/// terminal enxerga, então o caminho completo é o mais seguro.
+String localizarAdb(Map<String, String> env, Sistema sistema) =>
+    _procurarNoSdk(env, sistema, 'platform-tools', const ['adb', 'adb.exe']) ??
+    'adb';
+
+String? _procurarNoSdk(
+  Map<String, String> env,
+  Sistema sistema,
+  String pasta,
+  List<String> nomes,
+) {
   final home = env['HOME'];
   final windows = env['LOCALAPPDATA'];
   final candidatos = [
@@ -116,12 +135,12 @@ String localizarEmulator(Map<String, String> env, Sistema sistema) {
   ];
   for (final sdk in candidatos) {
     if (sdk == null || sdk.isEmpty) continue;
-    for (final nome in const ['emulator', 'emulator.exe']) {
-      final caminho = '$sdk/emulator/$nome';
+    for (final nome in nomes) {
+      final caminho = '$sdk/$pasta/$nome';
       if (sistema.arquivoExiste(caminho)) return caminho;
     }
   }
-  return 'emulator';
+  return null;
 }
 
 /// Seriais de `adb devices` em qualquer estado (`offline` e `unauthorized`

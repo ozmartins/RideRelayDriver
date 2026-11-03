@@ -100,6 +100,10 @@ class AdbProcesso implements Adb {
       final r = await Process.run(
         executavel,
         args,
+        // Sem caminho completo no Windows, o shell resolve o que o terminal
+        // enxerga (adb.cmd, atalhos); com caminho, o Dart executa direto.
+        runInShell:
+            Platform.isWindows && !executavel.contains(RegExp(r'[\\/]')),
         stdoutEncoding: binario ? null : _utf8Tolerante,
         stderrEncoding: _utf8Tolerante,
       ).timeout(timeoutPadrao);

@@ -199,9 +199,11 @@ PreparoAmbiente _criarPreparo(
   void Function(String)? desvio,
 }) {
   const sistema = SistemaReal();
+  final adbExe = localizarAdb(Platform.environment, sistema);
   return PreparoAmbiente(
     sistema: sistema,
-    adb: AdbProcesso(),
+    adb: AdbProcesso(executavel: adbExe),
+    adbExecutavel: adbExe,
     relogio: const RelogioReal(),
     emulator: localizarEmulator(Platform.environment, sistema),
     log: log,
@@ -337,7 +339,8 @@ Future<int> _executar(Opcoes o) async {
   }
 
   // Pré-condições (nada apagado até aqui).
-  final adb = AdbProcesso();
+  final adbExe = localizarAdb(Platform.environment, const SistemaReal());
+  final adb = AdbProcesso(executavel: adbExe);
   final AmbienteVerificado ambiente;
   try {
     ambiente = await verificarEmuladores(
@@ -349,7 +352,7 @@ Future<int> _executar(Opcoes o) async {
       (ambiente.serialMotorista, pacoteMotorista),
       (ambiente.serialPassageiro, pacotePassageiro),
     ]) {
-      final r = await Process.run('adb', [
+      final r = await Process.run(adbExe, [
         '-s',
         pacote.$1,
         'shell',
@@ -630,13 +633,14 @@ Future<int> _executarPorPapel(
     if (serial == null) return 2;
   }
 
-  final adb = AdbProcesso();
+  final adbExe = localizarAdb(Platform.environment, const SistemaReal());
+  final adb = AdbProcesso(executavel: adbExe);
   final Map<String, Object?> descricaoAmbiente;
   try {
     final v = await verificarEmulador(adb, avd: avd, papel: papel.name);
     serial = v.serial;
     descricaoAmbiente = v.descricao;
-    final r = await Process.run('adb', [
+    final r = await Process.run(adbExe, [
       '-s',
       serial,
       'shell',

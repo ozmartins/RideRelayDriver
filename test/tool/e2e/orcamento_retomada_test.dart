@@ -57,6 +57,7 @@ void main() {
     Execucao p,
     Future<ResultadoCiclo> Function(int) ciclos, {
     Future<bool> Function()? pronto,
+    Future<bool> Function()? entreCiclos,
   }) => ExecutorExecucao(
     execucao: p,
     repositorio: repo,
@@ -64,6 +65,7 @@ void main() {
     contexto: contexto,
     executarCiclo: ciclos,
     prontoParaCiclo: pronto ?? () async => true,
+    entreCiclos: entreCiclos,
   );
 
   setUp(() {
@@ -292,6 +294,146 @@ void main() {
 
     expect(r.motivoParcial, 'ambiente');
     expect(repo.lerCiclos(), hasLength(1));
+  });
+
+  group('entre ciclos', () {
+    ResultadoCiclo ok(int n) => ResultadoCiclo(ciclo: _ciclo(n, relogio));
+
+    test(
+      'roda entre dois ciclos, nunca antes do primeiro nem depois do último',
+      () async {
+        final eventos = <String>[];
+        final p = novaExecucao(meta: 3);
+        final r = await executor(
+          p,
+          (n) async {
+            eventos.add('ciclo $n');
+            return ok(n);
+          },
+          entreCiclos: () async {
+            eventos.add('reinicio');
+            return true;
+          },
+        ).executar();
+
+        expect(r.estado, EstadoExecucao.concluido);
+        expect(eventos, [
+          'ciclo 1',
+          'reinicio',
+          'ciclo 2',
+          'reinicio',
+          'ciclo 3',
+        ]);
+      },
+    );
+
+    test(
+      'na retomada não reinicia antes do primeiro ciclo da invocação',
+      () async {
+        final p = novaExecucao(meta: 3);
+        await executor(p, (n) async {
+          return ok(n);
+        }, pronto: () async => true).executar();
+        // Já há 3 ciclos gravados; refaz a execução com meta maior.
+        var reinicios = 0;
+        final p2 = novaExecucao(meta: 4);
+        await executor(
+          p2,
+          (n) async => ok(n),
+          entreCiclos: () async {
+            reinicios++;
+            return true;
+          },
+        ).executar();
+        expect(reinicios, 0);
+        expect(repo.lerCiclos(), hasLength(4));
+      },
+    );
+
+    test('o reinício fica fora do tempo e da janela do ciclo', () async {
+      final p = novaExecucao(meta: 2);
+      await executor(
+        p,
+        (n) async => ok(n),
+        entreCiclos: () async {
+          relogio.avancar(const Duration(minutes: 7));
+          return true;
+        },
+      ).executar();
+
+      final ciclos = repo.lerCiclos();
+      final folga = ciclos[1].inicioUtc.difference(ciclos[0].fimUtc);
+      expect(folga, const Duration(minutes: 7));
+      for (final c in ciclos) {
+        expect(c.fimUtc.difference(c.inicioUtc), const Duration(minutes: 4));
+      }
+    });
+
+    test('mas conta no tempo ativo da execução', () async {
+      final p = novaExecucao(meta: 2);
+      final r = await executor(
+        p,
+        (n) async => ok(n),
+        entreCiclos: () async {
+          relogio.avancar(const Duration(minutes: 7));
+          return true;
+        },
+      ).executar();
+      expect(r.tempoAtivoMs, const Duration(minutes: 15).inMilliseconds);
+    });
+
+    test(
+      'reinício que falha: parcial ambiente, sem iniciar outro ciclo',
+      () async {
+        var ciclos = 0;
+        final p = novaExecucao(meta: 3);
+        final r = await executor(p, (n) async {
+          ciclos++;
+          return ok(n);
+        }, entreCiclos: () async => false).executar();
+
+        expect(r.estado, EstadoExecucao.parcial);
+        expect(r.motivoParcial, 'ambiente');
+        expect(ciclos, 1);
+        expect(repo.lerCheckpoint()!.estado, EstadoExecucao.parcial);
+      },
+    );
+
+    test('reinício que consome o orçamento: parcial orcamento', () async {
+      var ciclos = 0;
+      final p = novaExecucao(meta: 3, orcamento: const Duration(minutes: 10));
+      final r = await executor(
+        p,
+        (n) async {
+          ciclos++;
+          return ok(n);
+        },
+        entreCiclos: () async {
+          relogio.avancar(const Duration(minutes: 8));
+          return true;
+        },
+      ).executar();
+
+      expect(r.estado, EstadoExecucao.parcial);
+      expect(r.motivoParcial, 'orcamento');
+      expect(ciclos, 1);
+    });
+
+    test('ciclo interrompido não dispara o reinício', () async {
+      var reinicios = 0;
+      final p = novaExecucao(meta: 3);
+      await executor(
+        p,
+        (n) async => ResultadoCiclo(
+          ciclo: _ciclo(n, relogio, resultado: 'interrompido', valido: false),
+        ),
+        entreCiclos: () async {
+          reinicios++;
+          return true;
+        },
+      ).executar();
+      expect(reinicios, 0);
+    });
   });
 
   group('persistência', () {

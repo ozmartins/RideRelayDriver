@@ -99,3 +99,36 @@ no Photon). O roteiro **não chegou a completar um ciclo**: o `earlyoom` do hosp
 dos emuladores (cerca de 3 GB cada, com o Android Studio aberto) sempre que a memória disponível cai
 abaixo de 10%, e isso derrubou o preparo em todas as tentativas. Etapas E09 a E12 (destino, avaliação e
 recibos) **não foram observadas** nos apps reais.
+
+Resposta a isso (2026-11-02): entre dois ciclos o roteiro desliga os dois emuladores
+(`adb shell reboot -p`), espera `MemAvailable` voltar a 3 GiB e os sobe de novo a frio
+(`-no-snapshot`, sem `-wipe-data`). O reinício fica fora do tempo e da janela de eventos do ciclo, conta
+no orçamento de 12 h e é registrado em `desvios.md`. `--sem-reinicio-entre-ciclos` o desliga. Quanto
+isso custa por ciclo e se basta para chegar aos 60 válidos **ainda não foi medido**: depende do ensaio.
+
+## Duas máquinas (um emulador em cada)
+
+Contrato: `contracts/coordenacao.md`. As duas máquinas precisam do repositório do motorista
+(é onde está o roteiro) e do `adb`/Android Studio; a do passageiro também precisa de
+`../RideRelayPassenger` ao lado, para compilar o app. No Windows, `adb` no `PATH` e
+`ANDROID_HOME` (ou o SDK padrão do Android Studio) para o `emulator`.
+
+1. Libere a porta 8765 (TCP, entrada) no firewall da máquina do **passageiro** e descubra o IP dela.
+2. Passageiro (coordenador; inicie primeiro ou depois, o motorista tenta por até 10 min):
+   `dart run tool/e2e/e2e.dart --executar --papel passageiro --token SEGREDO`
+3. Motorista:
+   `dart run tool/e2e/e2e.dart --executar --papel motorista --coordenador IP:8765 --token SEGREDO`
+
+Cada máquina grava a sua própria saída (`e2e_saida/execucao/`); `--retomar`, `--ensaio`
+e `--saida` valem em cada uma. Se o AVD tiver outro nome, use `--avd-motorista` /
+`--avd-passageiro`. O reinício do emulador entre ciclos fica desligado (use
+`--reinicio-entre-ciclos` para ligá-lo). Só viajam entre as máquinas as chaves públicas, a
+versão do código e metadados do ciclo.
+
+Se um lado falha no meio de um ciclo, o outro para de esperar em até 2 s (e não no prazo da
+etapa) e a falha dele é tratada como reflexo; a causa vale no resultado do ciclo.
+
+Relatório único: copie a pasta `e2e_saida/execucao` da outra máquina para esta (por exemplo
+`outra/execucao`) e rode `dart run tool/e2e/e2e.dart --relatorio --juntar outra/execucao`.
+A latência e as contagens por relay são calculadas por máquina, cada uma no seu relógio, e só
+então somadas; os ciclos precisam ter o mesmo desfecho nas duas, senão a junção é recusada.

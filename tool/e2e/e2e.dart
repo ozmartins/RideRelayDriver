@@ -26,10 +26,12 @@ import 'src/ambiente.dart';
 import 'src/checkpoint.dart';
 import 'src/ciclo.dart';
 import 'src/config.dart';
+import 'src/coordenacao.dart';
 import 'src/evidencia.dart';
 import 'src/execucao.dart';
 import 'src/observador.dart';
 import 'src/opcoes.dart';
+import 'src/papel.dart';
 import 'src/preparo.dart';
 import 'src/registro.dart';
 import 'src/relatorio.dart';
@@ -119,7 +121,18 @@ int _relatorio(Opcoes o) {
   }
   final DadosExecucao dados;
   try {
-    dados = lerDadosExecucao(pasta);
+    final propria = lerDadosExecucao(pasta);
+    final outra = o.juntar;
+    if (outra == null) {
+      dados = propria;
+    } else {
+      final pastaOutra = Directory(outra);
+      if (!pastaOutra.existsSync()) {
+        stderr.writeln('pasta a juntar inexistente: $outra');
+        return 2;
+      }
+      dados = juntarDados(propria, lerDadosExecucao(pastaOutra));
+    }
   } on FormatException catch (e) {
     stderr.writeln('execução ilegível: ${e.message}');
     return 2;
@@ -155,15 +168,7 @@ Future<bool> _prepararAmbiente(Opcoes o, {required bool instalar}) async {
     );
     return false;
   }
-  const sistema = SistemaReal();
-  final preparo = PreparoAmbiente(
-    sistema: sistema,
-    adb: AdbProcesso(),
-    relogio: const RelogioReal(),
-    emulator: localizarEmulator(Platform.environment, sistema),
-    log: (t) => print('ambiente: $t'),
-    semJanela: o.semJanela,
-  );
+  final preparo = _criarPreparo(o, log: (t) => print('ambiente: $t'));
   try {
     final seriais = await preparo.subirEmuladores(
       avdMotorista: o.avdDoMotorista,
@@ -188,8 +193,58 @@ Future<bool> _prepararAmbiente(Opcoes o, {required bool instalar}) async {
   return true;
 }
 
-Future<int> _preparar(Opcoes o) async =>
-    await _prepararAmbiente(o, instalar: true) ? 0 : 2;
+PreparoAmbiente _criarPreparo(
+  Opcoes o, {
+  required void Function(String) log,
+  void Function(String)? desvio,
+}) {
+  const sistema = SistemaReal();
+  return PreparoAmbiente(
+    sistema: sistema,
+    adb: AdbProcesso(),
+    relogio: const RelogioReal(),
+    emulator: localizarEmulator(Platform.environment, sistema),
+    log: log,
+    semJanela: o.semJanela,
+    desvio: desvio,
+  );
+}
+
+Future<int> _preparar(Opcoes o) async {
+  if (o.papel != null) return await _prepararEmuladorDoPapel(o) != null ? 0 : 2;
+  return await _prepararAmbiente(o, instalar: true) ? 0 : 2;
+}
+
+/// Duas máquinas: sobe só o emulador do papel desta máquina e, com [instalar],
+/// compila e instala só o app dele. Devolve o serial, ou `null` se falhar.
+Future<String?> _prepararEmuladorDoPapel(
+  Opcoes o, {
+  bool instalar = true,
+}) async {
+  final motorista = o.papel == Papel.motorista;
+  final repoApp = motorista ? Directory.current : _repoPassageiro;
+  if (instalar && !repoApp.existsSync()) {
+    stderr.writeln('repositório do app não encontrado em ${repoApp.path}');
+    return null;
+  }
+  final preparo = _criarPreparo(o, log: (t) => print('ambiente: $t'));
+  try {
+    final serial = await preparo.subirEmulador(
+      avd: motorista ? o.avdDoMotorista : o.avdDoPassageiro,
+    );
+    if (instalar) {
+      await preparo.compilarEInstalar(
+        rotulo: o.papel!.name,
+        diretorio: repoApp.path,
+        serial: serial,
+      );
+    }
+    return serial;
+  } on PreCondicaoFalha catch (e) {
+    stderr.writeln('preparo do ambiente falhou: ${e.mensagem}');
+    return null;
+  }
+}
 
 // ---- execução ----------------------------------------------------------------
 
@@ -219,7 +274,7 @@ Future<int> _executar(Opcoes o) async {
         ? (saida
               .listSync()
               .whereType<Directory>()
-              .where((d) => d.path.contains('/ensaio-'))
+              .where((d) => RegExp(r'[\\/]ensaio-').hasMatch(d.path))
               .toList()
             ..sort((a, b) => a.path.compareTo(b.path)))
         : <Directory>[];
@@ -262,6 +317,17 @@ Future<int> _executar(Opcoes o) async {
       return 2;
     }
     print('aviso: $msg');
+  }
+
+  if (o.papel != null) {
+    return _executarPorPapel(
+      o,
+      nome: nome,
+      pasta: pasta,
+      repo: repo,
+      teto: teto,
+      chaveOrs: chaveOrs,
+    );
   }
 
   // Emuladores e apps (nada é apagado aqui). Na retomada só garante os
@@ -331,17 +397,8 @@ Future<int> _executar(Opcoes o) async {
       execucao = repo.lerCheckpoint()!;
       repo.lerCiclos(); // recusa ciclos ilegíveis antes de qualquer ação
       log.escrever('retomando ${pasta.path}');
-      await adb.iniciarApp(mot, pacoteMotorista);
-      await adb.iniciarApp(pax, pacotePassageiro);
-      await relogio.dormir(const Duration(seconds: 3));
-      final pubMot = await lerChavePublica(adb, relogio, mot);
-      final pubPax = await lerChavePublica(adb, relogio, pax);
-      if (pubMot != execucao.motoristaPub || pubPax != execucao.passageiroPub) {
-        stderr.writeln(
-          'as chaves públicas dos apps não conferem com o checkpoint; recusando',
-        );
-        return 2;
-      }
+      // Apps reabertos e conferência das chaves: mais adiante, depois de o
+      // executor existir (uma corrida restaurada precisa ser cancelada antes).
     } else {
       log.escrever('preparando $nome: pm clear, permissões e cadastros');
       await limparEConceder(adb, mot, pacoteMotorista);
@@ -419,6 +476,77 @@ Future<int> _executar(Opcoes o) async {
   );
   final executorCiclo = ExecutorCiclo(contexto);
 
+  if (o.retomar) {
+    try {
+      if (!await executorCiclo.devolverAppsAoMapa()) {
+        stderr.writeln(
+          'os apps reabriram com uma corrida que não pôde ser cancelada; '
+          'cancele-a nos emuladores e use --retomar de novo',
+        );
+        await observador.parar();
+        return 2;
+      }
+      final pubMot = await lerChavePublica(adb, relogio, mot);
+      final pubPax = await lerChavePublica(adb, relogio, pax);
+      if (pubMot != execucao.motoristaPub || pubPax != execucao.passageiroPub) {
+        stderr.writeln(
+          'as chaves públicas dos apps não conferem com o checkpoint; recusando',
+        );
+        await observador.parar();
+        return 2;
+      }
+    } on PreCondicaoFalha catch (e) {
+      stderr.writeln('retomada interrompida: ${e.mensagem}');
+      await observador.parar();
+      return 2;
+    } on AdbFalha catch (e) {
+      stderr.writeln('adb falhou na retomada: ${e.mensagem}');
+      await observador.parar();
+      return 2;
+    }
+  }
+
+  // Entre dois ciclos os dois emuladores são desligados e subidos de novo, para
+  // que a memória que eles seguravam volte ao hospedeiro (o `earlyoom` matava um
+  // deles por volta do terceiro ciclo). Sem preparo, não há quem suba de volta.
+  final reiniciar = o.semPreparo || o.semReinicioEntreCiclos
+      ? null
+      : _criarPreparo(
+          o,
+          log: (t) => log.escrever('ambiente: $t'),
+          desvio: registrarDesvio,
+        );
+  if (reiniciar != null) {
+    registrarDesvio(
+      'os dois emuladores são desligados e subidos de novo entre cada ciclo '
+      '(fora do tempo e da janela de eventos do ciclo), com o mesmo AVD e os '
+      'dados preservados',
+    );
+  }
+  Future<bool> reiniciarEmuladores() async {
+    // Uma segunda tentativa antes de desistir: o primeiro boot a frio depois de
+    // um desligamento é o mais sujeito a demorar mais que o prazo.
+    for (var tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        final novos = await reiniciar!.reiniciarEmuladores(
+          avdMotorista: o.avdDoMotorista,
+          avdPassageiro: o.avdDoPassageiro,
+          serialMotorista: contexto.serialMotorista,
+          serialPassageiro: contexto.serialPassageiro,
+        );
+        contexto.serialMotorista = novos.motorista;
+        contexto.serialPassageiro = novos.passageiro;
+        return true;
+      } on PreCondicaoFalha catch (e) {
+        log.escrever(
+          'reinício dos emuladores falhou (tentativa $tentativa de 2): '
+          '${e.mensagem}',
+        );
+      }
+    }
+    return false;
+  }
+
   Future<bool> pronto() async {
     for (var i = 0; i < 20; i++) {
       await observador.garantirConexoes();
@@ -444,6 +572,7 @@ Future<int> _executar(Opcoes o) async {
     contexto: contexto,
     executarCiclo: executorCiclo.executar,
     prontoParaCiclo: pronto,
+    entreCiclos: reiniciar == null ? null : reiniciarEmuladores,
     log: log.escrever,
   );
   final sub = ProcessSignal.sigint.watch().listen((_) {
@@ -464,6 +593,363 @@ Future<int> _executar(Opcoes o) async {
   final c = Contadores.de(repo.lerCiclos());
   log.escrever(
     '$nome: ${final_.estado.name}${final_.motivoParcial != null ? ' (${final_.motivoParcial})' : ''}; '
+    'executados ${c.executados}, válidos ${c.validos}, falhas ${c.falhasValidas}, '
+    'externos repostos ${c.externosRepostos}',
+  );
+  final dados = lerDadosExecucao(pasta);
+  File('${pasta.path}/relatorio-execucao.md')
+      .writeAsStringSync(gerarRelatorio(dados).markdown);
+  final limpo = _varrer(pasta);
+  if (!limpo) return 1;
+  return final_.estado == EstadoExecucao.concluido ? 0 : 1;
+}
+
+// ---- execução em duas máquinas ----------------------------------------------
+
+/// Uma máquina, um emulador, um papel (`contracts/coordenacao.md`). O passageiro
+/// coordena (servidor na LAN); o motorista é cliente. Trocam as chaves
+/// **públicas** pelo canal de coordenação antes do primeiro ciclo.
+Future<int> _executarPorPapel(
+  Opcoes o, {
+  required String nome,
+  required Directory pasta,
+  required RepositorioExecucao repo,
+  required int teto,
+  required String? chaveOrs,
+}) async {
+  const relogio = RelogioReal();
+  final papel = o.papel!;
+  final souMotorista = papel == Papel.motorista;
+  final avd = souMotorista ? o.avdDoMotorista : o.avdDoPassageiro;
+  final pacote = souMotorista ? pacoteMotorista : pacotePassageiro;
+  final repoApp = souMotorista ? Directory.current : _repoPassageiro;
+
+  String? serial;
+  if (!o.semPreparo) {
+    serial = await _prepararEmuladorDoPapel(o, instalar: !o.retomar);
+    if (serial == null) return 2;
+  }
+
+  final adb = AdbProcesso();
+  final Map<String, Object?> descricaoAmbiente;
+  try {
+    final v = await verificarEmulador(adb, avd: avd, papel: papel.name);
+    serial = v.serial;
+    descricaoAmbiente = v.descricao;
+    final r = await Process.run('adb', [
+      '-s',
+      serial,
+      'shell',
+      'pm',
+      'path',
+      pacote,
+    ]);
+    if (r.exitCode != 0 || (r.stdout as String).trim().isEmpty) {
+      throw PreCondicaoFalha('pacote $pacote não instalado em $serial');
+    }
+  } on PreCondicaoFalha catch (e) {
+    stderr.writeln('pré-condição não atendida: ${e.mensagem}');
+    return 2;
+  }
+
+  // Canal de coordenação.
+  final Coordenacao coord;
+  ServidorCoordenacao? servidor;
+  if (souMotorista) {
+    coord = ClienteCoordenacao.deOpcoes(o);
+  } else {
+    final nucleo = NucleoCoordenacao();
+    servidor = ServidorCoordenacao(nucleo: nucleo, token: o.token!);
+    try {
+      await servidor.iniciar(porta: o.porta);
+    } on SocketException catch (e) {
+      stderr.writeln('não foi possível abrir a porta ${o.porta}: ${e.message}');
+      return 2;
+    }
+    coord = CoordenacaoLocal(nucleo, papel);
+    print(
+      'coordenador escutando na porta ${o.porta}; '
+      'o motorista deve usar --coordenador <IP desta máquina>:${o.porta}',
+    );
+  }
+
+  pasta.createSync(recursive: true);
+  final log = RegistroExecucao(
+    arquivo: File('${pasta.path}/execucao.log'),
+    chaveOrs: chaveOrs,
+  );
+  final desvios = File('${pasta.path}/desvios.md');
+  if (!desvios.existsSync()) desvios.writeAsStringSync(_modeloDesvios);
+  void registrarDesvio(String texto) {
+    desvios.writeAsStringSync(
+      '| ${DateTime.now().toUtc().toIso8601String()} | ${sanitizar(texto, chaveOrs: chaveOrs)} | automático |\n',
+      mode: FileMode.append,
+    );
+  }
+
+  Future<int> terminar(int codigo, {Observador? observador}) async {
+    await observador?.parar();
+    await servidor?.parar();
+    return codigo;
+  }
+
+  final Execucao execucao;
+  try {
+    // Chave pública e versão do app desta máquina; a retomada confere com o
+    // checkpoint (o app foi reaberto no mapa antes de ler a chave).
+    final minhaVersao = await lerVersao(repoApp.path);
+    final String minhaPub;
+    Execucao? anterior;
+    if (o.retomar) {
+      anterior = repo.lerCheckpoint()!;
+      repo.lerCiclos(); // recusa ciclos ilegíveis antes de qualquer ação
+      log.escrever('retomando ${pasta.path} como ${papel.name}');
+      final inicial = ContextoCiclo(
+        adb: adb,
+        serialMotorista: souMotorista ? serial : '',
+        serialPassageiro: souMotorista ? '' : serial,
+        papel: papel,
+        observador: Observador(
+          transport: const WsRelayTransport(),
+          verifier: const NostrEventVerifier(),
+          identidades: Identidades(
+            motorista: anterior.motoristaPub,
+            passageiro: anterior.passageiroPub,
+          ),
+          relogio: relogio,
+        ),
+        evidencia: Evidencia(
+          adb: adb,
+          pasta: Directory('${pasta.path}/capturas'),
+        ),
+        relogio: relogio,
+      );
+      if (!await ExecutorCiclo(inicial).devolverAppsAoMapa()) {
+        stderr.writeln(
+          'o app reabriu com uma corrida que não pôde ser cancelada; '
+          'cancele-a no emulador e use --retomar de novo',
+        );
+        return await terminar(2);
+      }
+      minhaPub = await lerChavePublica(adb, relogio, serial);
+      final esperada = souMotorista
+          ? anterior.motoristaPub
+          : anterior.passageiroPub;
+      if (minhaPub != esperada) {
+        stderr.writeln(
+          'a chave pública do app não confere com o checkpoint; recusando',
+        );
+        return await terminar(2);
+      }
+    } else {
+      log.escrever(
+        'preparando $nome (${papel.name}): pm clear, permissões e cadastro',
+      );
+      await limparEConceder(adb, serial, pacote);
+      if (souMotorista) {
+        await adb.geoFix(
+          serial,
+          partidaDoMotorista.lat,
+          partidaDoMotorista.lon,
+        );
+        await cadastrarMotorista(adb, relogio, serial);
+      } else {
+        await adb.geoFix(serial, pontoDeEncontro.lat, pontoDeEncontro.lon);
+        await cadastrarPassageiro(adb, relogio, serial);
+      }
+      await conferirRelays(adb, relogio, serial);
+      minhaPub = await lerChavePublica(adb, relogio, serial);
+    }
+
+    log.escrever('trocando as chaves públicas com o outro lado');
+    final outro = await trocarIdentidades(
+      coord,
+      minhaPub: minhaPub,
+      minhaVersao: minhaVersao,
+      relogio: relogio,
+      log: log.escrever,
+    );
+
+    if (anterior != null) {
+      final pubOutro = souMotorista
+          ? anterior.passageiroPub
+          : anterior.motoristaPub;
+      if (outro.pub != pubOutro) {
+        stderr.writeln(
+          'a chave pública do outro lado não confere com o checkpoint; recusando',
+        );
+        return await terminar(2);
+      }
+      execucao = anterior;
+    } else {
+      final agora = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      final deriva = await adb.epochEmulador(serial) - agora;
+      int? deslocamentoMs;
+      try {
+        deslocamentoMs = (await coord.deslocamentoDeRelogio()).inMilliseconds;
+      } on CoordenadorInalcancavel {
+        deslocamentoMs = null;
+      }
+      execucao = Execucao(
+        ensaio: o.ensaio,
+        metaValidos: o.metaValidos ?? metaValidosDaExecucao,
+        tetoExecutados: teto,
+        orcamentoMs: Duration(
+          minutes: o.orcamentoMin ?? const Limites().execucao.inMinutes,
+        ).inMilliseconds,
+        motoristaPub: souMotorista ? minhaPub : outro.pub,
+        passageiroPub: souMotorista ? outro.pub : minhaPub,
+        versoes: {
+          papel.name: minhaVersao,
+          (souMotorista ? 'passageiro' : 'motorista'): outro.versao,
+        },
+        ambiente: {
+          ...descricaoAmbiente,
+          'papel': papel.name,
+          'deriva_relogio_s': {papel.name: deriva},
+          // Relógio do coordenador menos o desta máquina; só metadado.
+          'deslocamento_relogio_coordenador_ms': deslocamentoMs,
+        },
+      );
+      repo.gravarCheckpoint(execucao);
+    }
+  } on PreCondicaoFalha catch (e) {
+    stderr.writeln('preparo interrompido: ${e.mensagem}');
+    return await terminar(2);
+  } on AdbFalha catch (e) {
+    stderr.writeln('adb falhou no preparo: ${e.mensagem}');
+    return await terminar(2);
+  }
+
+  final eventosArquivo = File('${pasta.path}/eventos.jsonl');
+  late final Observador observador;
+  observador = Observador(
+    transport: const WsRelayTransport(),
+    verifier: const NostrEventVerifier(),
+    identidades: Identidades(
+      motorista: execucao.motoristaPub,
+      passageiro: execucao.passageiroPub,
+    ),
+    relogio: relogio,
+    aoRegistrar: (e) {
+      eventosArquivo.writeAsStringSync(
+        '${jsonEncode(e.toJson(ciclo: observador.cicloAtual))}\n',
+        mode: FileMode.append,
+      );
+    },
+  );
+  await observador.iniciar();
+
+  final contexto = ContextoCiclo(
+    adb: adb,
+    serialMotorista: souMotorista ? serial : '',
+    serialPassageiro: souMotorista ? '' : serial,
+    papel: papel,
+    coordenacao: coord,
+    observador: observador,
+    evidencia: Evidencia(adb: adb, pasta: Directory('${pasta.path}/capturas')),
+    relogio: relogio,
+    telasCapturadas: execucao.telasCapturadas.toSet(),
+  );
+  final executorCiclo = ExecutorCiclo(contexto);
+
+  // Um emulador por máquina não disputa memória: o reinício a frio entre ciclos
+  // fica desligado, a menos que se peça.
+  final reiniciar = o.semPreparo || !o.reinicioEntreCiclos
+      ? null
+      : _criarPreparo(
+          o,
+          log: (t) => log.escrever('ambiente: $t'),
+          desvio: registrarDesvio,
+        );
+  if (reiniciar != null) {
+    registrarDesvio(
+      'o emulador do ${papel.name} é desligado e subido de novo entre cada '
+      'ciclo (fora do tempo e da janela de eventos do ciclo), com os dados '
+      'preservados',
+    );
+  }
+  Future<bool> reiniciarEmulador() async {
+    for (var tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        final atual = souMotorista
+            ? contexto.serialMotorista
+            : contexto.serialPassageiro;
+        final novo = await reiniciar!.reiniciarEmulador(
+          avd: avd,
+          serial: atual,
+        );
+        if (souMotorista) {
+          contexto.serialMotorista = novo;
+        } else {
+          contexto.serialPassageiro = novo;
+        }
+        return true;
+      } on PreCondicaoFalha catch (e) {
+        log.escrever(
+          'reinício do emulador falhou (tentativa $tentativa de 2): '
+          '${e.mensagem}',
+        );
+      }
+    }
+    return false;
+  }
+
+  Future<bool> pronto() async {
+    for (var i = 0; i < 20; i++) {
+      await observador.garantirConexoes();
+      if (observador.relaysProntos.length == relaysDoRoteiro.length) {
+        return true;
+      }
+      await relogio.dormir(const Duration(milliseconds: 1500));
+    }
+    if (observador.relaysProntos.isNotEmpty) {
+      final texto =
+          'observador sem todos os relays; prontos: ${observador.relaysProntos.join(', ')}';
+      log.escrever(texto);
+      registrarDesvio(texto);
+      return true;
+    }
+    return false;
+  }
+
+  final executor = ExecutorExecucao(
+    execucao: execucao,
+    repositorio: repo,
+    relogio: relogio,
+    contexto: contexto,
+    executarCiclo: executorCiclo.executar,
+    prontoParaCiclo: pronto,
+    entreCiclos: reiniciar == null ? null : reiniciarEmulador,
+    coordenacao: coord,
+    papel: papel,
+    log: log.escrever,
+  );
+  final sub = ProcessSignal.sigint.watch().listen((_) {
+    log.escrever(
+      'Ctrl+C: encerrando o ciclo em andamento e gravando o checkpoint',
+    );
+    executor.pedirParada();
+  });
+
+  Execucao final_;
+  try {
+    final_ = await executor.executar();
+    if (servidor != null) {
+      // O motorista lê a decisão final por polling; o servidor fica no ar um
+      // pouco mais para ele não achar que o coordenador caiu.
+      log.escrever('aguardando o motorista ler a decisão final');
+      await relogio.dormir(const Duration(seconds: 15));
+    }
+  } finally {
+    await sub.cancel();
+    await observador.parar();
+    await servidor?.parar();
+  }
+
+  final c = Contadores.de(repo.lerCiclos());
+  log.escrever(
+    '$nome (${papel.name}): ${final_.estado.name}${final_.motivoParcial != null ? ' (${final_.motivoParcial})' : ''}; '
     'executados ${c.executados}, válidos ${c.validos}, falhas ${c.falhasValidas}, '
     'externos repostos ${c.externosRepostos}',
   );

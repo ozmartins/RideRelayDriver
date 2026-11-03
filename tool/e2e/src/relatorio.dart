@@ -17,11 +17,119 @@ class DadosExecucao {
     required this.execucao,
     required this.ciclos,
     required this.eventos,
+    this.origens,
   });
 
   final Execucao execucao;
   final List<Ciclo> ciclos;
   final List<EventoObservado> eventos;
+
+  /// Junção de duas máquinas: os dados de cada uma, intactos. A latência e as
+  /// contagens por relay são calculadas por máquina (cada uma no seu relógio) e
+  /// só então somadas; [ciclos] é o ciclo único, fundido.
+  final List<DadosExecucao>? origens;
+
+  List<DadosExecucao> get fontes => origens ?? [this];
+}
+
+/// Junta a execução de duas máquinas (`--relatorio --juntar`). Recusa dados que
+/// não são da mesma execução: identidades, meta ou ciclos diferentes.
+DadosExecucao juntarDados(DadosExecucao a, DadosExecucao b) {
+  final ea = a.execucao, eb = b.execucao;
+  if (ea.motoristaPub != eb.motoristaPub ||
+      ea.passageiroPub != eb.passageiroPub) {
+    throw const FormatException(
+      'as duas pastas não são da mesma execução (identidades diferentes)',
+    );
+  }
+  if (ea.metaValidos != eb.metaValidos || ea.ensaio != eb.ensaio) {
+    throw const FormatException(
+      'as duas pastas têm meta ou tipo (ensaio/execução) diferentes',
+    );
+  }
+  final numA = [for (final c in a.ciclos) c.ciclo];
+  final numB = [for (final c in b.ciclos) c.ciclo];
+  if (numA.length != numB.length || !numA.every((n) => numB.contains(n))) {
+    throw const FormatException('os ciclos das duas máquinas não conferem');
+  }
+  final ciclos = <Ciclo>[];
+  for (final ca in a.ciclos) {
+    final cb = b.ciclos.firstWhere((c) => c.ciclo == ca.ciclo);
+    if (ca.resultado != cb.resultado || ca.valido != cb.valido) {
+      throw FormatException(
+        'o ciclo ${ca.ciclo} tem desfecho diferente nas duas máquinas',
+      );
+    }
+    final etapas = [
+      for (final e in ca.etapas)
+        Etapa(
+          id: e.id,
+          resultado: e.resultado,
+          inicioUtc: e.inicioUtc,
+          fimUtc: e.fimUtc,
+          limiteMs: e.limiteMs,
+          acoes: [
+            ...e.acoes,
+            for (final o in cb.etapas.where((x) => x.id == e.id)) ...o.acoes,
+          ],
+        ),
+    ];
+    ciclos.add(
+      Ciclo(
+        ciclo: ca.ciclo,
+        inicioUtc: ca.inicioUtc,
+        fimUtc: ca.fimUtc,
+        etapas: etapas,
+        resultado: ca.resultado,
+        valido: ca.valido,
+        repostoPor: ca.repostoPor,
+        etapaFalha: ca.etapaFalha,
+        origem: ca.origem,
+        servicoExterno: ca.servicoExterno,
+        origemBruta: ca.origemBruta,
+        sinalExterno: ca.sinalExterno ?? cb.sinalExterno,
+        capturas: [...ca.capturas, ...cb.capturas],
+        anomalias: ({...ca.anomalias, ...cb.anomalias}.toList()..sort()),
+        desvios: {...ca.desvios, ...cb.desvios}.toList(),
+        eventos: {...ca.eventos, ...cb.eventos}.toList(),
+      ),
+    );
+  }
+  // Se uma das máquinas parou antes da outra, vale o estado que não concluiu.
+  final base = ea.estado != EstadoExecucao.concluido ? ea : eb;
+  final ambiente = <String, Object?>{...ea.ambiente, ...eb.ambiente};
+  final deriva = <String, Object?>{
+    ...?(ea.ambiente['deriva_relogio_s'] as Map?)?.cast<String, Object?>(),
+    ...?(eb.ambiente['deriva_relogio_s'] as Map?)?.cast<String, Object?>(),
+  };
+  if (deriva.isNotEmpty) ambiente['deriva_relogio_s'] = deriva;
+  ambiente['deslocamento_relogio_coordenador_ms'] =
+      ea.ambiente['deslocamento_relogio_coordenador_ms'] ??
+      eb.ambiente['deslocamento_relogio_coordenador_ms'];
+  ambiente['papel'] = 'motorista+passageiro';
+  final execucao = Execucao(
+    ensaio: ea.ensaio,
+    metaValidos: ea.metaValidos,
+    tetoExecutados: ea.tetoExecutados,
+    orcamentoMs: ea.orcamentoMs,
+    tempoAtivoMs: ea.tempoAtivoMs > eb.tempoAtivoMs
+        ? ea.tempoAtivoMs
+        : eb.tempoAtivoMs,
+    invocacoes: [...ea.invocacoes, ...eb.invocacoes],
+    motoristaPub: ea.motoristaPub,
+    passageiroPub: ea.passageiroPub,
+    estado: base.estado,
+    motivoParcial: base.motivoParcial,
+    versoes: {...ea.versoes, ...eb.versoes},
+    ambiente: ambiente,
+    telasCapturadas: {...ea.telasCapturadas, ...eb.telasCapturadas}.toList(),
+  );
+  return DadosExecucao(
+    execucao: execucao,
+    ciclos: ciclos,
+    eventos: [...a.eventos, ...b.eventos],
+    origens: [a, b],
+  );
 }
 
 class Relatorio {
@@ -299,16 +407,20 @@ Relatorio gerarRelatorio(DadosExecucao dados, {DateTime? geradoEm}) {
   b.writeln();
   final todasAmostras = <AmostraLatencia>[];
   final desviosLatencia = <String>[];
-  for (final c in dados.ciclos) {
-    final doCiclo = [
-      for (final e in dados.eventos)
-        if (!e.recebidoUtc.isBefore(c.inicioUtc) &&
-            !e.recebidoUtc.isAfter(c.fimUtc.add(const Duration(seconds: 60))))
-          e,
-    ];
-    final r = calcularLatencias(c, doCiclo);
-    todasAmostras.addAll(r.amostras);
-    desviosLatencia.addAll(r.desvios);
+  // Cada máquina com os próprios ciclos, ações e eventos: a latência nunca
+  // cruza relógios.
+  for (final f in dados.fontes) {
+    for (final c in f.ciclos) {
+      final doCiclo = [
+        for (final e in f.eventos)
+          if (!e.recebidoUtc.isBefore(c.inicioUtc) &&
+              !e.recebidoUtc.isAfter(c.fimUtc.add(const Duration(seconds: 60))))
+            e,
+      ];
+      final r = calcularLatencias(c, doCiclo);
+      todasAmostras.addAll(r.amostras);
+      desviosLatencia.addAll(r.desvios);
+    }
   }
   b.writeln('| Tipo de evento | n | Mediana (ms) | P95 (ms) |');
   b.writeln('|----------------|---|--------------|----------|');
@@ -382,16 +494,19 @@ Relatorio gerarRelatorio(DadosExecucao dados, {DateTime? geradoEm}) {
   b.writeln('|-------|-------------------|-------------------|');
   final entregues = {for (final r in relaysDoRoteiro) r: 0};
   final primeiros = {for (final r in relaysDoRoteiro) r: 0};
-  final primeiroPorId = <String, EventoObservado>{};
-  for (final e in dados.eventos) {
-    entregues.update(e.relay, (v) => v + 1, ifAbsent: () => 1);
-    final atual = primeiroPorId[e.id];
-    if (atual == null || e.recebidoUtc.isBefore(atual.recebidoUtc)) {
-      primeiroPorId[e.id] = e;
+  for (final f in dados.fontes) {
+    // O "primeiro" é por máquina: dois relógios não se comparam.
+    final primeiroPorId = <String, EventoObservado>{};
+    for (final e in f.eventos) {
+      entregues.update(e.relay, (v) => v + 1, ifAbsent: () => 1);
+      final atual = primeiroPorId[e.id];
+      if (atual == null || e.recebidoUtc.isBefore(atual.recebidoUtc)) {
+        primeiroPorId[e.id] = e;
+      }
     }
-  }
-  for (final e in primeiroPorId.values) {
-    primeiros.update(e.relay, (v) => v + 1, ifAbsent: () => 1);
+    for (final e in primeiroPorId.values) {
+      primeiros.update(e.relay, (v) => v + 1, ifAbsent: () => 1);
+    }
   }
   for (final r in entregues.keys) {
     b.writeln('| $r | ${entregues[r]} | ${primeiros[r] ?? 0} |');

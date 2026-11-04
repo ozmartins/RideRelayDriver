@@ -61,3 +61,6 @@ google-services.json
 # Saída do roteiro E2E (feature 029): dados de execução, nunca versionados
 /e2e_saida/
 *.bat
+
+# Saída do emulador (tool/rodar_emulador.sh)
+/logs-emulador/

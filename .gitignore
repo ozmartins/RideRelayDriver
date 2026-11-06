@@ -65,3 +65,7 @@ google-services.json
 
 # Saída do emulador (tool/rodar_emulador.sh)
 /logs-emulador/
+
+# Logs extraídos dos aparelhos (tool/extrair_logs.sh): contêm dados de passageiros
+/logs-driver/
+/logs-passenger/

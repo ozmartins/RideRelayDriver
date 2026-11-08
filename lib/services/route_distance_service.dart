@@ -1,6 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:open_route_service/open_route_service.dart';
+// A exceção de HTTP não é exportada pela biblioteca pública (1.2.9).
+// ignore: implementation_imports
+import 'package:open_route_service/src/exceptions/base.dart'
+    show ORSHttpException;
 
 import '../domain/geo_distance.dart';
 import '../domain/route_trace.dart';
@@ -148,8 +152,21 @@ class RouteDistanceFailure implements Exception {
   const RouteDistanceFailure(this.cause);
   final Object? cause;
 
+  /// Status HTTP da resposta de erro da ORS (403 cota, 401 chave, 429 limite
+  /// por minuto...), ou `null` se a falha não veio de uma resposta HTTP. O
+  /// `toString` do `ORSHttpException` não o traz, e o log do fluxo o lê do
+  /// texto para classificar o motivo.
+  int? get statusCode {
+    final causa = cause;
+    return causa is ORSHttpException ? causa.statusCode : null;
+  }
+
   @override
-  String toString() => 'Falha no cálculo de distância: $cause';
+  String toString() {
+    final status = statusCode;
+    return 'Falha no cálculo de distância'
+        '${status == null ? '' : ' (HTTP $status)'}: $cause';
+  }
 }
 
 /// Acrescenta o header `Authorization` a toda requisição — workaround do bug

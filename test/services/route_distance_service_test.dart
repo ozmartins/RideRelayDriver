@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:driver/domain/geo_distance.dart';
 import 'package:driver/domain/route_trace.dart';
+import 'package:driver/services/flow_log.dart';
 import 'package:driver/services/route_distance_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -140,6 +141,28 @@ void main() {
         () => servico.trace(origin: _origem, destination: _destino),
         throwsA(isA<RouteDistanceFailure>()),
       );
+    });
+
+    test('expõe o status HTTP no texto da falha e no motivo do log', () async {
+      final servico = OrsRouteDistanceService(
+        client: OpenRouteService(
+          apiKey: 'chave-de-teste',
+          client: _ClienteHttpDeTeste(
+            (_) async =>
+                _respostaJson('{"error": "Quota exceeded"}', status: 403),
+          ),
+        ),
+      );
+
+      final falha = await servico
+          .estimate(origin: _origem, destination: _destino)
+          .then<RouteDistanceFailure?>((_) => null)
+          .catchError((Object e) => e as RouteDistanceFailure);
+
+      expect(falha, isNotNull);
+      expect(falha!.statusCode, 403);
+      expect(falha.toString(), contains('(HTTP 403)'));
+      expect(motivoExterno(falha), 'http403');
     });
 
     test('lança RouteDistanceFailure em resposta malformada', () async {
